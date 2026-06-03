@@ -15,10 +15,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "منصة الفيديو" },
+      { title: "maira v" },
       { name: "description", content: "منصة لعرض الفيديوهات والأفلام مع لقطات ذكية وتفاعلات" },
-      { property: "og:title", content: "منصة الفيديو" },
-      { name: "twitter:title", content: "منصة الفيديو" },
+      { property: "og:title", content: "maira v" },
+      { name: "twitter:title", content: "maira v" },
       { property: "og:description", content: "منصة لعرض الفيديوهات والأفلام مع لقطات ذكية وتفاعلات" },
       { name: "twitter:description", content: "منصة لعرض الفيديوهات والأفلام مع لقطات ذكية وتفاعلات" },
       { property: "og:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/eXsv4U4K9Faw4ERH4ZOeClUWkkh2/social-images/social-1780452471227-generated_image_(47).webp" },
