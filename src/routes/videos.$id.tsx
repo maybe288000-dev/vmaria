@@ -183,7 +183,7 @@ function VideoPage() {
                 {q.data.clips.map((c: any) => (
                   <li key={c.id}>
                     <button
-                      onClick={() => setStartSec(c.start_sec)}
+                      onClick={() => { setStartSec(c.start_sec); setPlaying(true); }}
                       className="w-full text-right rounded-lg border border-border bg-card p-3 hover:border-primary/50"
                     >
                       <div className="flex justify-between items-center gap-2">
