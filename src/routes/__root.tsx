@@ -14,24 +14,20 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   head: () => ({
     meta: [
       { charSet: "utf-8" },
-      { name: "theme-color", content: "#0b0814" },
-      { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
+      { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: "maira v" },
       { name: "description", content: "منصة لعرض الفيديوهات والأفلام مع لقطات ذكية وتفاعلات" },
       { property: "og:title", content: "maira v" },
       { name: "twitter:title", content: "maira v" },
       { property: "og:description", content: "منصة لعرض الفيديوهات والأفلام مع لقطات ذكية وتفاعلات" },
       { name: "twitter:description", content: "منصة لعرض الفيديوهات والأفلام مع لقطات ذكية وتفاعلات" },
-      { property: "og:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/eXsv4U4K9Faw4ERH4ZOeClUWkkh2/social-images/social-1780452471227-generated_image_(47).webp" },
-      { name: "twitter:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/eXsv4U4K9Faw4ERH4ZOeClUWkkh2/social-images/social-1780452471227-generated_image_(47).webp" },
+      { property: "og:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/eXsv4U4K9Faw4ERH4ZOeClUWkkh2/social-images/social-1780568770695-generated_image_(47).webp" },
+      { name: "twitter:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/eXsv4U4K9Faw4ERH4ZOeClUWkkh2/social-images/social-1780568770695-generated_image_(47).webp" },
       { name: "twitter:card", content: "summary_large_image" },
       { property: "og:type", content: "website" },
     ],
     links: [
       { rel: "stylesheet", href: appCss },
-      { rel: "manifest", href: "/manifest.webmanifest" },
-      { rel: "icon", href: "/icon-192.png", type: "image/png" },
-      { rel: "apple-touch-icon", href: "/icon-192.png" },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "" },
       {
