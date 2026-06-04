@@ -11,7 +11,7 @@ export const Route = createFileRoute("/admin/videos")({
 
 function AdminVideos() {
   const qc = useQueryClient();
-  const q = useQuery({ queryKey: ["videos"], queryFn: () => listVideos() });
+  const q = useQuery({ queryKey: ["videos"], queryFn: () => listVideos({ data: {} }) });
   const [busy, setBusy] = useState<string | null>(null);
 
   const generate = async (id: string) => {

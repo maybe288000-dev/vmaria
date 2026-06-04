@@ -13,10 +13,13 @@ import {
 } from "@/lib/video.functions";
 import { drivePreviewUrl } from "@/lib/drive";
 import { getAnonId } from "@/lib/anon-id";
-import { ThumbsUp, ThumbsDown, Bookmark, Star, Send } from "lucide-react";
+import { ThumbsUp, ThumbsDown, Bookmark, Star, Send, Play } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/videos/$id")({
+  validateSearch: (s: Record<string, unknown>) => ({
+    t: typeof s.t === "number" ? s.t : s.t ? Number(s.t) || undefined : undefined,
+  }),
   component: VideoPage,
 });
 
@@ -28,9 +31,11 @@ function fmt(t: number) {
 
 function VideoPage() {
   const { id } = Route.useParams();
+  const { t: tParam } = Route.useSearch();
   const qc = useQueryClient();
   const [anonId, setAnonId] = useState<string>("");
-  const [startSec, setStartSec] = useState<number | undefined>(undefined);
+  const [startSec, setStartSec] = useState<number | undefined>(tParam);
+  const [playing, setPlaying] = useState<boolean>(false);
   const sessionRef = useRef<string | null>(null);
   const secondsRef = useRef(0);
 
@@ -54,9 +59,9 @@ function VideoPage() {
   });
   const myKinds = useMemo(() => new Set((my.data ?? []).map((r: any) => r.kind)), [my.data]);
 
-  // Start a view session + heartbeat every 10s
+  // Start a view session + heartbeat every 15s (paused when tab hidden)
   useEffect(() => {
-    if (!anonId || !q.data?.video) return;
+    if (!anonId || !q.data?.video || !playing) return;
     let cancelled = false;
     let interval: ReturnType<typeof setInterval> | null = null;
     (async () => {
@@ -67,22 +72,23 @@ function VideoPage() {
       sessionRef.current = session_id;
       const dur = q.data?.video?.duration_sec ?? 0;
       interval = setInterval(() => {
-        secondsRef.current += 10;
+        if (document.hidden) return;
+        secondsRef.current += 15;
         const completed = dur > 0 && secondsRef.current >= dur * 0.9;
         heartbeatViewSession({
           data: {
             session_id,
-            seconds_watched: secondsRef.current,
+            seconds_watched: secondsRef.current + (startSec ?? 0),
             completed,
           },
         }).catch(() => {});
-      }, 10000);
+      }, 15000);
     })();
     return () => {
       cancelled = true;
       if (interval) clearInterval(interval);
     };
-  }, [anonId, q.data?.video, id]);
+  }, [anonId, q.data?.video, id, playing, startSec]);
 
   const react = async (kind: "like" | "dislike" | "save") => {
     if (!anonId) return;
@@ -101,14 +107,36 @@ function VideoPage() {
       <main className="container mx-auto px-4 py-6">
         <div className="grid lg:grid-cols-[1fr_360px] gap-6">
           <div>
-            <div className="aspect-video w-full overflow-hidden rounded-xl bg-black border border-border">
-              <iframe
-                key={startSec ?? "0"}
-                src={drivePreviewUrl(v.drive_file_id, startSec)}
-                allow="autoplay; encrypted-media; fullscreen"
-                allowFullScreen
-                className="h-full w-full"
-              />
+            <div className="relative aspect-video w-full overflow-hidden rounded-xl bg-black border border-border">
+              {playing ? (
+                <iframe
+                  key={startSec ?? "0"}
+                  src={drivePreviewUrl(v.drive_file_id, startSec)}
+                  allow="autoplay; encrypted-media; fullscreen"
+                  allowFullScreen
+                  className="h-full w-full"
+                />
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setPlaying(true)}
+                  className="group absolute inset-0 h-full w-full"
+                  aria-label="تشغيل"
+                >
+                  {v.thumbnail_url ? (
+                    <img
+                      src={v.thumbnail_url}
+                      alt={v.title}
+                      className="h-full w-full object-cover opacity-80 group-hover:opacity-100 transition-opacity"
+                    />
+                  ) : null}
+                  <span className="absolute inset-0 flex items-center justify-center bg-black/30">
+                    <span className="inline-flex h-16 w-16 items-center justify-center rounded-full bg-primary/90 text-primary-foreground shadow-lg">
+                      <Play className="h-7 w-7 mr-0.5" />
+                    </span>
+                  </span>
+                </button>
+              )}
             </div>
             <h1 className="mt-4 text-2xl font-bold">{v.title}</h1>
             {v.description && (
@@ -155,7 +183,7 @@ function VideoPage() {
                 {q.data.clips.map((c: any) => (
                   <li key={c.id}>
                     <button
-                      onClick={() => setStartSec(c.start_sec)}
+                      onClick={() => { setStartSec(c.start_sec); setPlaying(true); }}
                       className="w-full text-right rounded-lg border border-border bg-card p-3 hover:border-primary/50"
                     >
                       <div className="flex justify-between items-center gap-2">
