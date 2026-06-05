@@ -38,6 +38,21 @@ export type Database = {
         }
         Relationships: []
       }
+      blocked_users: {
+        Row: {
+          anon_id: string
+          blocked_at: string
+        }
+        Insert: {
+          anon_id: string
+          blocked_at?: string
+        }
+        Update: {
+          anon_id?: string
+          blocked_at?: string
+        }
+        Relationships: []
+      }
       categories: {
         Row: {
           created_at: string
@@ -59,6 +74,30 @@ export type Database = {
           id?: string
           name?: string
           slug?: string
+        }
+        Relationships: []
+      }
+      chat_messages: {
+        Row: {
+          anon_id: string
+          content: string
+          created_at: string
+          id: string
+          role: string
+        }
+        Insert: {
+          anon_id: string
+          content: string
+          created_at?: string
+          id?: string
+          role: string
+        }
+        Update: {
+          anon_id?: string
+          content?: string
+          created_at?: string
+          id?: string
+          role?: string
         }
         Relationships: []
       }
