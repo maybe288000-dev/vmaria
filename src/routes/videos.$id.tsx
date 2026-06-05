@@ -13,8 +13,10 @@ import {
 } from "@/lib/video.functions";
 import { drivePreviewUrl } from "@/lib/drive";
 import { getAnonId } from "@/lib/anon-id";
-import { ThumbsUp, ThumbsDown, Bookmark, Star, Send, Play } from "lucide-react";
+import { isAuthed } from "@/lib/auth-gate";
+import { ThumbsUp, ThumbsDown, Bookmark, Star, Send, Play, Maximize2 } from "lucide-react";
 import { toast } from "sonner";
+import { useNavigate } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/videos/$id")({
   validateSearch: (s: Record<string, unknown>) => ({
@@ -33,13 +35,28 @@ function VideoPage() {
   const { id } = Route.useParams();
   const { t: tParam } = Route.useSearch();
   const qc = useQueryClient();
+  const navigate = useNavigate();
   const [anonId, setAnonId] = useState<string>("");
   const [startSec, setStartSec] = useState<number | undefined>(tParam);
   const [playing, setPlaying] = useState<boolean>(false);
   const sessionRef = useRef<string | null>(null);
   const secondsRef = useRef(0);
+  const playerRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => setAnonId(getAnonId()), []);
+  useEffect(() => {
+    if (!isAuthed()) {
+      navigate({ to: "/auth", search: { redirect: `/videos/${id}` } });
+      return;
+    }
+    setAnonId(getAnonId());
+  }, [navigate, id]);
+
+  const goFullscreen = () => {
+    const el = playerRef.current as any;
+    if (!el) return;
+    const fn = el.requestFullscreen || el.webkitRequestFullscreen || el.webkitEnterFullscreen;
+    if (fn) fn.call(el);
+  };
 
   const q = useQuery({
     queryKey: ["video", id],
@@ -107,15 +124,27 @@ function VideoPage() {
       <main className="container mx-auto px-4 py-6">
         <div className="grid lg:grid-cols-[1fr_360px] gap-6">
           <div>
-            <div className="relative aspect-video w-full overflow-hidden rounded-xl bg-black border border-border">
+            <div
+              ref={playerRef}
+              className="relative aspect-video w-full overflow-hidden rounded-xl bg-black border border-border"
+            >
               {playing ? (
-                <iframe
-                  key={startSec ?? "0"}
-                  src={drivePreviewUrl(v.drive_file_id, startSec)}
-                  allow="autoplay; encrypted-media; fullscreen"
-                  allowFullScreen
-                  className="h-full w-full"
-                />
+                <>
+                  <iframe
+                    key={startSec ?? "0"}
+                    src={drivePreviewUrl(v.drive_file_id, startSec)}
+                    allow="autoplay; encrypted-media; fullscreen"
+                    allowFullScreen
+                    className="h-full w-full"
+                  />
+                  <button
+                    onClick={goFullscreen}
+                    className="absolute top-2 left-2 z-10 rounded-full bg-black/60 p-2 text-white hover:bg-black/80"
+                    aria-label="ملء الشاشة"
+                  >
+                    <Maximize2 className="h-4 w-4" />
+                  </button>
+                </>
               ) : (
                 <button
                   type="button"
@@ -128,6 +157,7 @@ function VideoPage() {
                       src={v.thumbnail_url}
                       alt={v.title}
                       className="h-full w-full object-cover opacity-80 group-hover:opacity-100 transition-opacity"
+                      referrerPolicy="no-referrer"
                     />
                   ) : null}
                   <span className="absolute inset-0 flex items-center justify-center bg-black/30">
