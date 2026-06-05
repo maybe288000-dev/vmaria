@@ -10,14 +10,14 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SavedRouteImport } from './routes/saved'
-import { Route as OnboardingRouteImport } from './routes/onboarding'
-import { Route as InterestsRouteImport } from './routes/interests'
+import { Route as ChatRouteImport } from './routes/chat'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
 import { Route as VideosIdRouteImport } from './routes/videos.$id'
 import { Route as AdminVideosRouteImport } from './routes/admin.videos'
+import { Route as AdminUsersRouteImport } from './routes/admin.users'
 import { Route as AdminAnalyticsRouteImport } from './routes/admin.analytics'
 
 const SavedRoute = SavedRouteImport.update({
@@ -25,14 +25,9 @@ const SavedRoute = SavedRouteImport.update({
   path: '/saved',
   getParentRoute: () => rootRouteImport,
 } as any)
-const OnboardingRoute = OnboardingRouteImport.update({
-  id: '/onboarding',
-  path: '/onboarding',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const InterestsRoute = InterestsRouteImport.update({
-  id: '/interests',
-  path: '/interests',
+const ChatRoute = ChatRouteImport.update({
+  id: '/chat',
+  path: '/chat',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthRoute = AuthRouteImport.update({
@@ -65,6 +60,11 @@ const AdminVideosRoute = AdminVideosRouteImport.update({
   path: '/videos',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminUsersRoute = AdminUsersRouteImport.update({
+  id: '/users',
+  path: '/users',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminAnalyticsRoute = AdminAnalyticsRouteImport.update({
   id: '/analytics',
   path: '/analytics',
@@ -75,10 +75,10 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRouteWithChildren
   '/auth': typeof AuthRoute
-  '/interests': typeof InterestsRoute
-  '/onboarding': typeof OnboardingRoute
+  '/chat': typeof ChatRoute
   '/saved': typeof SavedRoute
   '/admin/analytics': typeof AdminAnalyticsRoute
+  '/admin/users': typeof AdminUsersRoute
   '/admin/videos': typeof AdminVideosRoute
   '/videos/$id': typeof VideosIdRoute
   '/admin/': typeof AdminIndexRoute
@@ -86,10 +86,10 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
-  '/interests': typeof InterestsRoute
-  '/onboarding': typeof OnboardingRoute
+  '/chat': typeof ChatRoute
   '/saved': typeof SavedRoute
   '/admin/analytics': typeof AdminAnalyticsRoute
+  '/admin/users': typeof AdminUsersRoute
   '/admin/videos': typeof AdminVideosRoute
   '/videos/$id': typeof VideosIdRoute
   '/admin': typeof AdminIndexRoute
@@ -99,10 +99,10 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/admin': typeof AdminRouteWithChildren
   '/auth': typeof AuthRoute
-  '/interests': typeof InterestsRoute
-  '/onboarding': typeof OnboardingRoute
+  '/chat': typeof ChatRoute
   '/saved': typeof SavedRoute
   '/admin/analytics': typeof AdminAnalyticsRoute
+  '/admin/users': typeof AdminUsersRoute
   '/admin/videos': typeof AdminVideosRoute
   '/videos/$id': typeof VideosIdRoute
   '/admin/': typeof AdminIndexRoute
@@ -113,10 +113,10 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/auth'
-    | '/interests'
-    | '/onboarding'
+    | '/chat'
     | '/saved'
     | '/admin/analytics'
+    | '/admin/users'
     | '/admin/videos'
     | '/videos/$id'
     | '/admin/'
@@ -124,10 +124,10 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/auth'
-    | '/interests'
-    | '/onboarding'
+    | '/chat'
     | '/saved'
     | '/admin/analytics'
+    | '/admin/users'
     | '/admin/videos'
     | '/videos/$id'
     | '/admin'
@@ -136,10 +136,10 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/auth'
-    | '/interests'
-    | '/onboarding'
+    | '/chat'
     | '/saved'
     | '/admin/analytics'
+    | '/admin/users'
     | '/admin/videos'
     | '/videos/$id'
     | '/admin/'
@@ -149,8 +149,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRouteWithChildren
   AuthRoute: typeof AuthRoute
-  InterestsRoute: typeof InterestsRoute
-  OnboardingRoute: typeof OnboardingRoute
+  ChatRoute: typeof ChatRoute
   SavedRoute: typeof SavedRoute
   VideosIdRoute: typeof VideosIdRoute
 }
@@ -164,18 +163,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SavedRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/onboarding': {
-      id: '/onboarding'
-      path: '/onboarding'
-      fullPath: '/onboarding'
-      preLoaderRoute: typeof OnboardingRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/interests': {
-      id: '/interests'
-      path: '/interests'
-      fullPath: '/interests'
-      preLoaderRoute: typeof InterestsRouteImport
+    '/chat': {
+      id: '/chat'
+      path: '/chat'
+      fullPath: '/chat'
+      preLoaderRoute: typeof ChatRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/auth': {
@@ -220,6 +212,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminVideosRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/users': {
+      id: '/admin/users'
+      path: '/users'
+      fullPath: '/admin/users'
+      preLoaderRoute: typeof AdminUsersRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/analytics': {
       id: '/admin/analytics'
       path: '/analytics'
@@ -232,12 +231,14 @@ declare module '@tanstack/react-router' {
 
 interface AdminRouteChildren {
   AdminAnalyticsRoute: typeof AdminAnalyticsRoute
+  AdminUsersRoute: typeof AdminUsersRoute
   AdminVideosRoute: typeof AdminVideosRoute
   AdminIndexRoute: typeof AdminIndexRoute
 }
 
 const AdminRouteChildren: AdminRouteChildren = {
   AdminAnalyticsRoute: AdminAnalyticsRoute,
+  AdminUsersRoute: AdminUsersRoute,
   AdminVideosRoute: AdminVideosRoute,
   AdminIndexRoute: AdminIndexRoute,
 }
@@ -248,8 +249,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRouteWithChildren,
   AuthRoute: AuthRoute,
-  InterestsRoute: InterestsRoute,
-  OnboardingRoute: OnboardingRoute,
+  ChatRoute: ChatRoute,
   SavedRoute: SavedRoute,
   VideosIdRoute: VideosIdRoute,
 }

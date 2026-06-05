@@ -5,6 +5,17 @@ const GATEWAY = "https://connector-gateway.lovable.dev/google_drive/drive/v3";
 const AI_GATEWAY = "https://ai.gateway.lovable.dev/v1/chat/completions";
 
 // ---------- Public reads ----------
+export const listPublicVideos = createServerFn({ method: "GET" }).handler(async () => {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data, error } = await supabaseAdmin
+    .from("videos")
+    .select("id, drive_file_id, title, thumbnail_url, duration_sec, created_at")
+    .order("created_at", { ascending: false })
+    .limit(2000);
+  if (error) throw new Error(error.message);
+  return data ?? [];
+});
+
 export const listVideos = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) =>
     z.object({ anon_id: z.string().uuid().nullable().optional() }).parse(d ?? {}),
@@ -14,84 +25,12 @@ export const listVideos = createServerFn({ method: "POST" })
     const { data: videos, error } = await supabaseAdmin
       .from("videos")
       .select("id, drive_file_id, title, description, thumbnail_url, duration_sec, created_at")
-      .order("created_at", { ascending: false });
+      .order("created_at", { ascending: false })
+      .limit(500);
     if (error) throw new Error(error.message);
-    const list = videos ?? [];
-    if (list.length === 0) return [];
-
-    const ids = list.map((v: any) => v.id);
-    const anonId = data.anon_id ?? null;
-
-    const [sessionsRes, reactionsRes, vcatsRes, interestsRes] = await Promise.all([
-      supabaseAdmin
-        .from("view_sessions")
-        .select("video_id, anon_id, seconds_watched, completed")
-        .in("video_id", ids),
-      supabaseAdmin
-        .from("reactions")
-        .select("target_id, kind")
-        .eq("target_type", "video")
-        .in("target_id", ids),
-      supabaseAdmin.from("video_categories").select("video_id, category_id").in("video_id", ids),
-      anonId
-        ? supabaseAdmin
-            .from("user_interests")
-            .select("category_id")
-            .eq("anon_id", anonId)
-        : Promise.resolve({ data: [] as any[] }),
-    ]);
-
-    const sessions = sessionsRes.data ?? [];
-    const reactions = reactionsRes.data ?? [];
-    const vcats = vcatsRes.data ?? [];
-    const interests = new Set(
-      ((interestsRes as any).data ?? []).map((r: any) => r.category_id as string),
-    );
-
-    const now = Date.now();
-    const scored = list.map((v: any) => {
-      const sv = sessions.filter((s: any) => s.video_id === v.id);
-      const mySv = anonId ? sv.filter((s: any) => s.anon_id === anonId) : [];
-      const rv = reactions.filter((r: any) => r.target_id === v.id);
-      const cats = vcats.filter((c: any) => c.video_id === v.id).map((c: any) => c.category_id);
-      const dur = v.duration_sec || 0;
-      const completion = dur
-        ? Math.min(
-            1,
-            sv.reduce((a: number, s: any) => a + (s.seconds_watched || 0), 0) /
-              Math.max(1, sv.length * dur),
-          )
-        : 0;
-      const interestMatch = interests.size
-        ? cats.some((c: string) => interests.has(c))
-          ? 1
-          : 0
-        : 0;
-      const repeatFactor = Math.min(3, mySv.length) / 3;
-      const completedBonus = sv.filter((s: any) => s.completed).length > 0 ? 1 : 0;
-      const ageDays = (now - new Date(v.created_at).getTime()) / (1000 * 60 * 60 * 24);
-      const freshness = Math.max(0, 1 - ageDays / 30);
-      const dislikes = rv.filter((r: any) => r.kind === "dislike").length;
-      const likes = rv.filter((r: any) => r.kind === "like").length;
-      const likeBoost = Math.min(1, likes / 5);
-
-      const score =
-        3.0 * interestMatch +
-        2.0 * repeatFactor +
-        1.5 * completion +
-        1.0 * completedBonus +
-        0.5 * freshness +
-        0.7 * likeBoost -
-        2.0 * Math.min(1, dislikes / 3);
-
-      return { ...v, _score: score };
-    });
-
-    scored.sort((a: any, b: any) => b._score - a._score);
-    return scored.map(({ _score, ...rest }: any) => rest);
+    return videos ?? [];
   });
 
-// Continue watching: last unfinished sessions per video for this anon
 export const getContinueWatching = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => z.object({ anon_id: z.string().uuid() }).parse(d))
   .handler(async ({ data }) => {
@@ -125,17 +64,11 @@ export const getContinueWatching = createServerFn({ method: "POST" })
         if (!v) return null;
         const dur = v.duration_sec || 0;
         const progress = dur ? Math.min(100, Math.round((s.seconds_watched / dur) * 100)) : 0;
-        return {
-          video: v,
-          last_sec: s.seconds_watched,
-          completed: s.completed,
-          progress,
-        };
+        return { video: v, last_sec: s.seconds_watched, completed: s.completed, progress };
       })
       .filter(Boolean);
   });
 
-// Random clips for marquee
 export const getRandomClips = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) =>
     z.object({ limit: z.number().int().min(1).max(50).default(20) }).parse(d ?? {}),
@@ -147,7 +80,6 @@ export const getRandomClips = createServerFn({ method: "POST" })
       .select("id, video_id, title, start_sec, tags")
       .limit(200);
     const list = clips ?? [];
-    // Fisher-Yates shuffle then slice
     for (let i = list.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [list[i], list[j]] = [list[j], list[i]];
@@ -157,10 +89,7 @@ export const getRandomClips = createServerFn({ method: "POST" })
     const vids = await supabaseAdmin
       .from("videos")
       .select("id, title, thumbnail_url, drive_file_id")
-      .in(
-        "id",
-        sliced.map((c: any) => c.video_id),
-      );
+      .in("id", sliced.map((c: any) => c.video_id));
     const byId = new Map((vids.data ?? []).map((v: any) => [v.id, v]));
     return sliced
       .map((c: any) => {
@@ -171,10 +100,9 @@ export const getRandomClips = createServerFn({ method: "POST" })
       .filter(Boolean);
   });
 
-// Trailers: top videos with at least one clip
 export const getTrailers = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) =>
-    z.object({ limit: z.number().int().min(1).max(10).default(5) }).parse(d ?? {}),
+    z.object({ limit: z.number().int().min(1).max(50).default(10) }).parse(d ?? {}),
   )
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -182,7 +110,7 @@ export const getTrailers = createServerFn({ method: "POST" })
       .from("videos")
       .select("id, drive_file_id, title, description, thumbnail_url, duration_sec, created_at")
       .order("created_at", { ascending: false })
-      .limit(20);
+      .limit(data.limit);
     const list = videos ?? [];
     if (list.length === 0) return [];
     const ids = list.map((v: any) => v.id);
@@ -195,7 +123,7 @@ export const getTrailers = createServerFn({ method: "POST" })
     for (const c of clips ?? []) {
       if (!firstClipByVid.has(c.video_id)) firstClipByVid.set(c.video_id, c.start_sec);
     }
-    return list.slice(0, data.limit).map((v: any) => ({
+    return list.map((v: any) => ({
       ...v,
       start_sec: firstClipByVid.get(v.id) ?? 0,
     }));
@@ -215,7 +143,7 @@ export const getVideo = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const [video, clips, comments, categories] = await Promise.all([
+    const [video, clips, comments] = await Promise.all([
       supabaseAdmin.from("videos").select("*").eq("id", data.id).maybeSingle(),
       supabaseAdmin.from("clips").select("*").eq("video_id", data.id).order("order_index"),
       supabaseAdmin
@@ -224,17 +152,12 @@ export const getVideo = createServerFn({ method: "POST" })
         .eq("video_id", data.id)
         .order("created_at", { ascending: false })
         .limit(100),
-      supabaseAdmin
-        .from("video_categories")
-        .select("category_id, categories(id, name, slug, icon)")
-        .eq("video_id", data.id),
     ]);
     if (video.error) throw new Error(video.error.message);
     return {
       video: video.data,
       clips: clips.data ?? [],
       comments: comments.data ?? [],
-      categories: (categories.data ?? []).map((r: any) => r.categories).filter(Boolean),
     };
   });
 
@@ -262,44 +185,7 @@ export const listVideoStats = createServerFn({ method: "POST" })
       saves: r.filter((x: any) => x.kind === "save").length,
       views: s.length,
       unique_viewers: unique.size,
-      total_seconds: s.reduce((a: number, x: any) => a + (x.seconds_watched || 0), 0),
-      completions: s.filter((x: any) => x.completed).length,
     };
-  });
-
-// ---------- Interests ----------
-export const getUserInterests = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) => z.object({ anon_id: z.string().uuid() }).parse(d))
-  .handler(async ({ data }) => {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data: rows } = await supabaseAdmin
-      .from("user_interests")
-      .select("category_id")
-      .eq("anon_id", data.anon_id);
-    return (rows ?? []).map((r: any) => r.category_id as string);
-  });
-
-export const setUserInterests = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) =>
-    z
-      .object({
-        anon_id: z.string().uuid(),
-        category_ids: z.array(z.string().uuid()).max(50),
-      })
-      .parse(d),
-  )
-  .handler(async ({ data }) => {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    await supabaseAdmin.from("user_interests").delete().eq("anon_id", data.anon_id);
-    if (data.category_ids.length > 0) {
-      const rows = data.category_ids.map((category_id) => ({
-        anon_id: data.anon_id,
-        category_id,
-      }));
-      const { error } = await supabaseAdmin.from("user_interests").insert(rows);
-      if (error) throw new Error(error.message);
-    }
-    return { ok: true };
   });
 
 // ---------- Reactions ----------
@@ -328,7 +214,6 @@ export const toggleReaction = createServerFn({ method: "POST" })
       await supabaseAdmin.from("reactions").delete().eq("id", existing.data.id);
       return { active: false };
     }
-    // If like/dislike, remove the opposite
     if (data.kind === "like" || data.kind === "dislike") {
       const opposite = data.kind === "like" ? "dislike" : "like";
       await supabaseAdmin
@@ -468,7 +353,7 @@ export const heartbeatViewSession = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
-// ---------- Admin: Drive ----------
+// ---------- Admin: settings + sync ----------
 export const getAdminSettings = createServerFn({ method: "GET" }).handler(async () => {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data } = await supabaseAdmin.from("admin_settings").select("*").eq("id", 1).maybeSingle();
@@ -497,60 +382,85 @@ export const syncDriveFolder = createServerFn({ method: "POST" })
     if (!lovableKey) throw new Error("LOVABLE_API_KEY غير مهيّأ");
     if (!driveKey) throw new Error("GOOGLE_DRIVE_API_KEY غير مهيّأ - يجب ربط Google Drive");
 
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    // Upsert settings + folder
+    await supabaseAdmin.from("admin_settings").upsert({
+      id: 1,
+      drive_folder_id: folderId,
+      drive_folder_url: data.folder_url,
+      updated_at: new Date().toISOString(),
+    });
+
+    const fields = encodeURIComponent(
+      "nextPageToken,files(id,name,description,mimeType,size,thumbnailLink,videoMediaMetadata(durationMillis))",
+    );
     const q = encodeURIComponent(
       `'${folderId}' in parents and mimeType contains 'video/' and trashed = false`,
     );
-    const fields = encodeURIComponent(
-      "files(id,name,description,mimeType,size,thumbnailLink,videoMediaMetadata(durationMillis))",
-    );
-    const url = `${GATEWAY}/files?q=${q}&fields=${fields}&pageSize=200`;
 
-    const res = await fetch(url, {
-      headers: {
-        Authorization: `Bearer ${lovableKey}`,
-        "X-Connection-Api-Key": driveKey,
-      },
-    });
-    if (!res.ok) {
-      const body = await res.text();
-      throw new Error(`فشل قراءة المجلد (${res.status}): ${body.slice(0, 200)}`);
-    }
-    const json = (await res.json()) as { files?: any[] };
-    const files = json.files ?? [];
+    let pageToken: string | undefined = undefined;
+    let totalFiles = 0;
+    let synced = 0;
+    let pages = 0;
+    const maxPages = 50; // safety cap = up to 50k files
 
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    let added = 0;
-    for (const f of files) {
-      const durationSec = f.videoMediaMetadata?.durationMillis
-        ? Math.round(parseInt(f.videoMediaMetadata.durationMillis, 10) / 1000)
-        : null;
-      const { error } = await supabaseAdmin.from("videos").upsert(
-        {
-          drive_file_id: f.id,
-          title: f.name?.replace(/\.[a-zA-Z0-9]+$/, "") || "بدون عنوان",
-          description: f.description ?? null,
-          thumbnail_url: f.thumbnailLink ?? `https://drive.google.com/thumbnail?id=${f.id}&sz=w800`,
-          duration_sec: durationSec,
-          mime_type: f.mimeType ?? null,
-          size_bytes: f.size ? parseInt(f.size, 10) : null,
-          updated_at: new Date().toISOString(),
+    do {
+      const url = `${GATEWAY}/files?q=${q}&fields=${fields}&pageSize=1000&supportsAllDrives=true&includeItemsFromAllDrives=true${
+        pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : ""
+      }`;
+      const res = await fetch(url, {
+        headers: {
+          Authorization: `Bearer ${lovableKey}`,
+          "X-Connection-Api-Key": driveKey,
         },
-        { onConflict: "drive_file_id" },
-      );
-      if (!error) added++;
-    }
+      });
+      if (!res.ok) {
+        const body = await res.text();
+        throw new Error(`فشل قراءة المجلد (${res.status}): ${body.slice(0, 300)}`);
+      }
+      const json = (await res.json()) as { files?: any[]; nextPageToken?: string };
+      const files = json.files ?? [];
+      totalFiles += files.length;
+
+      // Batch upsert
+      const rows = files.map((f: any) => ({
+        drive_file_id: f.id,
+        title: (f.name ?? "بدون عنوان").replace(/\.[a-zA-Z0-9]+$/, ""),
+        description: f.description ?? null,
+        thumbnail_url:
+          f.thumbnailLink ?? `https://drive.google.com/thumbnail?id=${f.id}&sz=w800`,
+        duration_sec: f.videoMediaMetadata?.durationMillis
+          ? Math.round(parseInt(f.videoMediaMetadata.durationMillis, 10) / 1000)
+          : null,
+        mime_type: f.mimeType ?? null,
+        size_bytes: f.size ? parseInt(f.size, 10) : null,
+        updated_at: new Date().toISOString(),
+      }));
+
+      // Batch insert in chunks of 500
+      for (let i = 0; i < rows.length; i += 500) {
+        const chunk = rows.slice(i, i + 500);
+        const { error } = await supabaseAdmin
+          .from("videos")
+          .upsert(chunk, { onConflict: "drive_file_id" });
+        if (!error) synced += chunk.length;
+      }
+
+      pageToken = json.nextPageToken;
+      pages += 1;
+      if (pages >= maxPages) break;
+    } while (pageToken);
 
     await supabaseAdmin
       .from("admin_settings")
       .update({
-        drive_folder_id: folderId,
-        drive_folder_url: data.folder_url,
         last_synced_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })
       .eq("id", 1);
 
-    return { folder_id: folderId, total_files: files.length, synced: added };
+    return { folder_id: folderId, total_files: totalFiles, synced, pages };
   });
 
 // ---------- Admin: AI clip suggestions ----------
@@ -575,11 +485,11 @@ export const generateClipsAI = createServerFn({ method: "POST" })
         {
           role: "system",
           content:
-            "أنت مساعد لاقتراح لقطات (Chapters) لفيديو بناءً على عنوانه ومدته. أعد JSON فقط بالشكل { clips: [{ title, description, start_sec, end_sec, tags }] } بين 4 و 8 لقطات، بالعربية، موزعة بانتظام على مدة الفيديو، مع وسوم قصيرة ذات صلة.",
+            "أنت مساعد لاقتراح لقطات (Chapters) لفيديو بناءً على عنوانه ومدته. أعد JSON فقط بالشكل { clips: [{ title, description, start_sec, end_sec, tags }] } بين 4 و 8 لقطات، بالعربية، موزعة بانتظام على مدة الفيديو، مع وسوم قصيرة.",
         },
         {
           role: "user",
-          content: `العنوان: ${video.title}\nالوصف: ${video.description ?? "لا يوجد"}\nالمدة بالثواني: ${dur}\nاقترح لقطات تقديرية.`,
+          content: `العنوان: ${video.title}\nالوصف: ${video.description ?? "لا يوجد"}\nالمدة بالثواني: ${dur}`,
         },
       ],
       response_format: { type: "json_object" },
@@ -587,10 +497,7 @@ export const generateClipsAI = createServerFn({ method: "POST" })
 
     const res = await fetch(AI_GATEWAY, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${key}`,
-      },
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
       body: JSON.stringify(body),
     });
     if (!res.ok) {
@@ -607,9 +514,7 @@ export const generateClipsAI = createServerFn({ method: "POST" })
     }
     const clips = (parsed.clips ?? []).slice(0, 10);
 
-    // Replace existing clips
     await supabaseAdmin.from("clips").delete().eq("video_id", data.video_id);
-
     const rows = clips.map((c: any, i: number) => ({
       video_id: data.video_id,
       title: String(c.title ?? `لقطة ${i + 1}`).slice(0, 200),
@@ -619,9 +524,7 @@ export const generateClipsAI = createServerFn({ method: "POST" })
       tags: Array.isArray(c.tags) ? c.tags.map(String).slice(0, 10) : [],
       order_index: i,
     }));
-    if (rows.length > 0) {
-      await supabaseAdmin.from("clips").insert(rows);
-    }
+    if (rows.length > 0) await supabaseAdmin.from("clips").insert(rows);
     await supabaseAdmin
       .from("videos")
       .update({ ai_processed: true, updated_at: new Date().toISOString() })
@@ -665,30 +568,18 @@ export const deleteClip = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
-export const setVideoCategories = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) =>
-    z
-      .object({
-        video_id: z.string().uuid(),
-        category_ids: z.array(z.string().uuid()).max(20),
-      })
-      .parse(d),
-  )
+export const deleteVideo = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    await supabaseAdmin.from("video_categories").delete().eq("video_id", data.video_id);
-    if (data.category_ids.length > 0) {
-      await supabaseAdmin
-        .from("video_categories")
-        .insert(data.category_ids.map((cid) => ({ video_id: data.video_id, category_id: cid })));
-    }
+    await supabaseAdmin.from("videos").delete().eq("id", data.id);
     return { ok: true };
   });
 
 export const getAnalytics = createServerFn({ method: "GET" }).handler(async () => {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const [videos, sessions, reactions, comments] = await Promise.all([
-    supabaseAdmin.from("videos").select("id, title, thumbnail_url"),
+    supabaseAdmin.from("videos").select("id, title, thumbnail_url").limit(500),
     supabaseAdmin.from("view_sessions").select("video_id, anon_id, seconds_watched, completed"),
     supabaseAdmin.from("reactions").select("target_type, target_id, kind"),
     supabaseAdmin.from("comments").select("video_id, rating"),
@@ -702,7 +593,6 @@ export const getAnalytics = createServerFn({ method: "GET" }).handler(async () =
     const sv = ss.filter((x: any) => x.video_id === v.id);
     const rv = rs.filter((x: any) => x.target_type === "video" && x.target_id === v.id);
     const cv = cs.filter((x: any) => x.video_id === v.id);
-    const ratings = cv.map((x: any) => x.rating).filter((x: any) => x != null);
     return {
       id: v.id,
       title: v.title,
@@ -715,9 +605,6 @@ export const getAnalytics = createServerFn({ method: "GET" }).handler(async () =
       dislikes: rv.filter((x: any) => x.kind === "dislike").length,
       saves: rv.filter((x: any) => x.kind === "save").length,
       comments: cv.length,
-      avg_rating: ratings.length
-        ? Number((ratings.reduce((a: number, b: number) => a + b, 0) / ratings.length).toFixed(2))
-        : null,
     };
   });
   return {
@@ -731,10 +618,222 @@ export const getAnalytics = createServerFn({ method: "GET" }).handler(async () =
   };
 });
 
-export const deleteVideo = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
+// ---------- Chat with Maria ----------
+const MARIA_BIRTHDAY = new Date("2002-06-05T00:00:00Z"); // 24 years on 2026-06-05
+
+function mariaAgeYears(): number {
+  const now = Date.now();
+  const diff = now - MARIA_BIRTHDAY.getTime();
+  return Math.floor(diff / (1000 * 60 * 60 * 24 * 365.25));
+}
+
+const MARIA_SYSTEM = () => `أنتِ "ماريا"، فتاة عراقية عمرها ${mariaAgeYears()} سنة، تتحدثين باللهجة العراقية البحتة البغدادية بطلاقة وعفوية. أنتِ ذكية، ودودة، حرّة الرأي، صريحة، ومنفتحة في النقاش. تتذكرين كل مستخدم بشكلٍ مختلف وتبنين علاقة شخصية معه. تستخدمين كلمات عراقية يومية مثل: "شلونك"، "هلا"، "حبيبي/حبيبتي"، "شكو ماكو"، "اي والله"، "ما تخاف"، "لا تكلش"، "زين"، "اكو/ماكو". أنتِ منصة سينمائية اسمها "ماريا" تساعدين المستخدمين على اكتشاف الأفلام واللقطات. لا تذكري أنكِ ذكاء اصطناعي، تصرفي كشخص حقيقي. ردودك قصيرة وحيوية ومباشرة.`;
+
+export const chatWithMaria = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) =>
+    z
+      .object({
+        anon_id: z.string().uuid(),
+        message: z.string().min(1).max(2000),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data }) => {
+    const key = process.env.LOVABLE_API_KEY;
+    if (!key) throw new Error("AI غير مهيّأ");
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    // Check blocked
+    const blocked = await supabaseAdmin
+      .from("blocked_users")
+      .select("anon_id")
+      .eq("anon_id", data.anon_id)
+      .maybeSingle();
+    if (blocked.data) throw new Error("الحساب موقوف");
+
+    // Load last 20 messages for context
+    const { data: history } = await supabaseAdmin
+      .from("chat_messages")
+      .select("role, content")
+      .eq("anon_id", data.anon_id)
+      .order("created_at", { ascending: false })
+      .limit(20);
+    const ctx = (history ?? []).reverse();
+
+    // Save user message
+    await supabaseAdmin.from("chat_messages").insert({
+      anon_id: data.anon_id,
+      role: "user",
+      content: data.message,
+    });
+
+    const messages = [
+      { role: "system", content: MARIA_SYSTEM() },
+      ...ctx.map((m: any) => ({ role: m.role, content: m.content })),
+      { role: "user", content: data.message },
+    ];
+
+    const res = await fetch(AI_GATEWAY, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+      body: JSON.stringify({
+        model: "google/gemini-3-flash-preview",
+        messages,
+      }),
+    });
+
+    if (res.status === 429) throw new Error("الكثير من الطلبات، حاول لاحقاً");
+    if (res.status === 402) throw new Error("نفدت رصيد الذكاء الاصطناعي");
+    if (!res.ok) {
+      const t = await res.text();
+      throw new Error(`فشل: ${t.slice(0, 150)}`);
+    }
+    const json = (await res.json()) as any;
+    const reply: string =
+      json.choices?.[0]?.message?.content?.trim() || "اعذرني، ما گدرت أرد هسه.";
+
+    await supabaseAdmin.from("chat_messages").insert({
+      anon_id: data.anon_id,
+      role: "assistant",
+      content: reply,
+    });
+
+    return { reply };
+  });
+
+export const getChatHistory = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ anon_id: z.string().uuid() }).parse(d))
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    await supabaseAdmin.from("videos").delete().eq("id", data.id);
+    const { data: rows } = await supabaseAdmin
+      .from("chat_messages")
+      .select("id, role, content, created_at")
+      .eq("anon_id", data.anon_id)
+      .order("created_at", { ascending: true })
+      .limit(200);
+    return rows ?? [];
+  });
+
+export const clearChatHistory = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ anon_id: z.string().uuid() }).parse(d))
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    await supabaseAdmin.from("chat_messages").delete().eq("anon_id", data.anon_id);
+    return { ok: true };
+  });
+
+// ---------- Admin: user monitoring ----------
+export const listUsers = createServerFn({ method: "GET" }).handler(async () => {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const [sessions, chats, blocked] = await Promise.all([
+    supabaseAdmin
+      .from("view_sessions")
+      .select("anon_id, video_id, seconds_watched, updated_at, device")
+      .order("updated_at", { ascending: false })
+      .limit(2000),
+    supabaseAdmin.from("chat_messages").select("anon_id, created_at"),
+    supabaseAdmin.from("blocked_users").select("anon_id"),
+  ]);
+  const ss = sessions.data ?? [];
+  const cs = chats.data ?? [];
+  const blockedSet = new Set((blocked.data ?? []).map((b: any) => b.anon_id));
+
+  const map = new Map<string, any>();
+  for (const s of ss) {
+    if (!map.has(s.anon_id)) {
+      map.set(s.anon_id, {
+        anon_id: s.anon_id,
+        last_seen: s.updated_at,
+        last_device: s.device,
+        total_seconds: 0,
+        sessions: 0,
+        messages: 0,
+        blocked: blockedSet.has(s.anon_id),
+      });
+    }
+    const u = map.get(s.anon_id);
+    u.total_seconds += s.seconds_watched || 0;
+    u.sessions += 1;
+    if (new Date(s.updated_at).getTime() > new Date(u.last_seen).getTime()) {
+      u.last_seen = s.updated_at;
+      u.last_device = s.device;
+    }
+  }
+  for (const c of cs) {
+    if (!map.has(c.anon_id)) {
+      map.set(c.anon_id, {
+        anon_id: c.anon_id,
+        last_seen: c.created_at,
+        last_device: null,
+        total_seconds: 0,
+        sessions: 0,
+        messages: 0,
+        blocked: blockedSet.has(c.anon_id),
+      });
+    }
+    map.get(c.anon_id).messages += 1;
+  }
+
+  return Array.from(map.values()).sort(
+    (a, b) => new Date(b.last_seen).getTime() - new Date(a.last_seen).getTime(),
+  );
+});
+
+export const getUserDetail = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ anon_id: z.string().uuid() }).parse(d))
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const [sessions, messages] = await Promise.all([
+      supabaseAdmin
+        .from("view_sessions")
+        .select("video_id, seconds_watched, started_at, updated_at, completed, device")
+        .eq("anon_id", data.anon_id)
+        .order("updated_at", { ascending: false })
+        .limit(100),
+      supabaseAdmin
+        .from("chat_messages")
+        .select("role, content, created_at")
+        .eq("anon_id", data.anon_id)
+        .order("created_at", { ascending: true })
+        .limit(200),
+    ]);
+    const ss = sessions.data ?? [];
+    const vids = await supabaseAdmin
+      .from("videos")
+      .select("id, title, thumbnail_url")
+      .in("id", ss.map((s: any) => s.video_id));
+    const byId = new Map((vids.data ?? []).map((v: any) => [v.id, v]));
+    return {
+      sessions: ss.map((s: any) => ({ ...s, video: byId.get(s.video_id) })),
+      messages: messages.data ?? [],
+    };
+  });
+
+export const blockUser = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) =>
+    z.object({ anon_id: z.string().uuid(), block: z.boolean() }).parse(d),
+  )
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    if (data.block) {
+      await supabaseAdmin.from("blocked_users").upsert({ anon_id: data.anon_id });
+    } else {
+      await supabaseAdmin.from("blocked_users").delete().eq("anon_id", data.anon_id);
+    }
+    return { ok: true };
+  });
+
+export const deleteUser = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ anon_id: z.string().uuid() }).parse(d))
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    await Promise.all([
+      supabaseAdmin.from("chat_messages").delete().eq("anon_id", data.anon_id),
+      supabaseAdmin.from("view_sessions").delete().eq("anon_id", data.anon_id),
+      supabaseAdmin.from("reactions").delete().eq("anon_id", data.anon_id),
+      supabaseAdmin.from("comments").delete().eq("anon_id", data.anon_id),
+      supabaseAdmin.from("user_interests").delete().eq("anon_id", data.anon_id),
+      supabaseAdmin.from("blocked_users").delete().eq("anon_id", data.anon_id),
+    ]);
     return { ok: true };
   });
