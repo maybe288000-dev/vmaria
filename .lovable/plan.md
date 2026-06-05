@@ -1,49 +1,92 @@
-## الهدف
+## المشاكل الحالية المُكتشفة
+- مزامنة Drive تقرأ 200 ملف فقط (`pageSize=200` بدون pagination) → لا تستوعب 10,000.
+- الصفحة الرئيسية تُجبر المستخدم على `/onboarding` (اهتمامات) قبل العرض.
+- لا يوجد قفل دخول للأدمن، ولا قسم محادثة، ولا حماية للتشغيل، ولا اسم "ماريا".
 
-إتمام دعم تثبيت التطبيق (Add to Home Screen) دون وضع offline.
+## الخطة
 
-## الخطوات
+### 1) إصلاح مزامنة Drive لـ 10,000+ فيديو
+- `syncDriveFolder`: حلقة pagination عبر `pageToken` حتى ينتهي المجلد، `pageSize=1000`.
+- مزامنة دفعية: `upsert` على شكل batches من 500 بدل صف-صف لتقليل الزمن.
+- إرجاع تقدم تجميعي `{ total_files, synced, pages }`.
+- في `admin.index.tsx`: شريط حالة "تمت معالجة X من Y" مع إعادة استدعاء تلقائية كل 5 ثوانٍ أثناء العمل.
+- زر "مزامنة كاملة" + زر "تحديث الجديد فقط" (يستخدم `modifiedTime > last_synced_at`).
 
-### 1) ربط manifest وإضافة meta tags في `__root.tsx`
+### 2) إعادة تسمية الموقع إلى "ماريا"
+- `__root.tsx`: العنوان → "ماريا".
+- `manifest.webmanifest`: `name: "ماريا"`, `short_name: "ماريا"`.
+- `AppNav.tsx`: شعار + اسم "ماريا".
 
-- إضافة `{ rel: "manifest", href: "/manifest.webmanifest" }` في مصفوفة `links`.
-- إضافة `{ rel: "apple-touch-icon", href: "/icon-192.png" }`.
-- إضافة `{ name: "theme-color", content: "#0b0814" }` في `meta`.
-- إضافة `{ name: "apple-mobile-web-app-capable", content: "yes" }`.
+### 3) الصفحة الرئيسية عامة (بدون تسجيل) مع تريلر تلقائي
+- إزالة الـ redirect إلى `/onboarding` من `index.tsx`؛ تعمل بدون `anon_id`.
+- `TrailersHero`: كاروسيل تلقائي يعرض **كل** الفيديوهات (مع pagination داخلي/lazy) ليس فقط 5؛ صور مصغّرة من Drive (`driveThumbnailUrl`) وiframe صامت قابل للنقر.
+- شبكة الفيديوهات تظهر للجميع مع صورة الغلاف.
+- عند النقر على فيديو: إذا غير مسجل → توجيه إلى `/auth` مع `?redirect=/videos/{id}`.
 
-### 2) مكوّن زر التثبيت `InstallPrompt.tsx`
+### 4) قفل دخول الأدمن/المستخدم برمز 6969
+- صفحة `/auth` بسيطة: حقل واحد "كلمة المرور"، عند إدخال `6969` يتم تسجيل دخول مجهول (anonymous sign-in) عبر Supabase، ويُحفظ علم `is_admin` في localStorage عند `6969`.
+- لا تسجيل عام لأي شخص آخر؛ بدون 6969 لا يمكن المتابعة.
+- حماية `/videos/$id` و`/admin/*` و`/chat`: redirect إلى `/auth` إذا لم يُدخل الرمز.
 
-- استماع لحدث `beforeinstallprompt` وتخزين `deferredPrompt`.
-- عرض زر/بطاقة "تثبيت التطبيق" عند توفر الحدث.
-- عند النقر: استدعاء `deferredPrompt.prompt()` ثم `userChoice`.
-- إخفاء الزر بعد اكتمال التثبيت أو رفضه.
-- fallback: إذا لم يدعم المتصفح الحدث، إخفاء الزر تلقائياً.
+### 5) تقسيم الفيديو (Chapters) مع نبذة تلقائية
+- موجود جزئياً (`generateClipsAI`). إضافة:
+  - استدعاء تلقائي بعد المزامنة لكل فيديو جديد (background، 5 بالتوازي).
+  - في صفحة الفيديو `/videos/$id`: قائمة جانبية بالـ chapters، النقر يضبط `?t=` ويقفز.
+  - نبذة قصيرة لكل chapter من الـ AI (الحقل `description` موجود).
 
-### 3) دمج الزر في الواجهة
+### 6) مشغل مناسب للهاتف
+- في `videos.$id.tsx`: 
+  - iframe في حاوية `aspect-video` ثابتة، عرض كامل على الجوال.
+  - زر "ملء الشاشة" يستدعي `requestFullscreen()` على الحاوية.
+  - إخفاء شريط التنقل عند fullscreen.
+  - دعم viewport-fit=cover (موجود).
 
-- إدراج `<InstallPrompt />` في `AppNav.tsx` أو كزر عائم في `index.tsx` (حسب المساحة).
-- تصميم الزر بأسلوب النظام الحالي (أيقونة + نص "تثبيت").
+### 7) قسم المحادثة "ماريا" بدل الاهتمامات
+- حذف رابط "اهتماماتي" من `AppNav`، استبداله بـ "ماريا" → `/chat`.
+- صفحة `/chat` محمية بـ 6969:
+  - مكوّن دردشة streaming مع `useChat` + `DefaultChatTransport({ api: "/api/chat" })`.
+  - حفظ المحادثة في `chat_messages` table (anon_id, role, content, created_at).
+- Server route `src/routes/api/chat.ts`:
+  - يستخدم Lovable AI Gateway + `google/gemini-3-flash-preview`.
+  - system prompt: "أنتِ ماريا، 24 سنة (يُحسب من 2026-06-05)، عراقية بلهجة عراقية بحتة، شخصية ودودة متفاعلة مع كل مستخدم بشكل فريد".
+  - تمرير anon_id + اسم المستخدم في الـ context.
+- **ملاحظة محتوى**: الطلب يحوي "بدون قيود/فلتر" ومحتوى جنسي صريح — هذا مخالف لسياسات نماذج الذكاء الاصطناعي (سيتم رفض الطلبات تلقائياً من الـ gateway). شخصية ماريا ستكون **ودودة ومتحررة في النقاش وحرة الرأي**، لكن دون محتوى جنسي صريح؛ سأخبرك إذا رغبت بتعديل اللهجة.
 
-### 4) بدون service worker
+### 8) لوحة الأدمن لمراقبة المستخدمين
+- جدول `chat_messages`: تخزين كل رسائل ماريا مع anon_id.
+- صفحة `/admin/users`:
+  - قائمة anon_ids مع: آخر فيديو مُشاهد، الوقت الإجمالي، عدد الرسائل.
+  - عند النقر: تاريخ المشاهدة الكامل + محادثات ماريا.
+  - أزرار "إيقاف" (block) و"حذف" (تنظيف كل بيانات anon_id).
+- جدول `blocked_users(anon_id)` للقائمة السوداء؛ middleware يرفض الطلبات.
 
-- لا يتم إضافة `vite-plugin-pwa` أو أي service worker.
-- لا يتم دعم offline.
+### 9) PWA احترافي كامل
+- التأكد من ربط manifest في `__root.tsx` (تم).
+- إضافة `apple-mobile-web-app-status-bar-style: black-translucent` (تم).
+- توليد أيقونات 192/512 + maskable + favicon بهوية "ماريا".
+- splash screens لـ iOS (روابط `apple-touch-startup-image` بمقاسات الشائعة).
+- زر "تثبيت التطبيق" (تم) + display: `standalone` (تم).
+
+## مخطط قاعدة البيانات الجديد
+```sql
+CREATE TABLE chat_messages (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  anon_id uuid NOT NULL,
+  role text NOT NULL CHECK (role IN ('user','assistant')),
+  content text NOT NULL,
+  created_at timestamptz DEFAULT now()
+);
+CREATE TABLE blocked_users (
+  anon_id uuid PRIMARY KEY,
+  blocked_at timestamptz DEFAULT now()
+);
+```
+مع GRANT و RLS مفتوحة (تطبيق anon).
 
 ## الملفات المتأثرة
+- تعديل: `src/lib/video.functions.ts` (pagination + AI auto)، `src/routes/index.tsx`، `src/routes/__root.tsx`، `src/components/AppNav.tsx`، `src/components/TrailersHero.tsx`، `src/routes/videos.$id.tsx`، `src/routes/admin.index.tsx`، `public/manifest.webmanifest`.
+- إنشاء: `src/routes/auth.tsx`، `src/routes/chat.tsx`، `src/routes/api/chat.ts`، `src/routes/admin.users.tsx`، `src/lib/ai-gateway.server.ts`، `src/lib/auth-gate.ts`، migration للجدولين الجديدين.
+- حذف: `src/routes/interests.tsx`، `src/routes/onboarding.tsx`.
 
-- `src/routes/__root.tsx` — إضافة links و meta
-- `src/components/InstallPrompt.tsx` — جديد
-- `src/components/AppNav.tsx` أو `src/routes/index.tsx` — دمج الزر
-
-1- التاكد من الموقع والاحترافية بالتصميم   
-2- التاكد من تحميل وظهور كل الافلام التي تأتي من رابط  
-3- معرفة المستخدم ماذا يشاهد الان وسابقاً من خلال الادمن فقط  
-4-pwa بشكل احترافي كامل  
-5- سلايدر على الشاشة الرئيسية مع تريلر لكل الفيديوهات التي يتم تغذيتها من الرابط  
-فقط الصفحة الرئيسية تعمل وتظهر التريلر ويتم توليد لقطات بشكل تلقائي ولكن لا يمكن تشغيل الفيديو الا بعد تسجيل الدخول , تبديل قسم الاهتمامات بالجات بوت  
-3- التاكد من عمل التريلر للافلام بشكل تلقائي دون اي تدخل من مستخدم مع وضع صور للافلام من خلال اخذ لقطات بشكل تلقائي لعرضها في الصفحة الرئيسية  
-4- انشاء تقسيم للافلام مع نبذة تلقائية لكل مقطع او فيديو يعني عند ضغط على فيديو يظهر تقسيم لتسهيل الذهاب المتسخدم او الوقت الذي يرغب به  
-5- تغيير اسم الموقع الى " ماريا "  
-6- دمج ذكاء جات بوت في الموقع يفهم الموقع والمستخدم ويتحدث مع ماريا بكل طلاقة وسلاسة وبلهجة عراقية بحته ومن دون قيود او حدود او فلتر يمنع المحادثة على ان يكون عمر ماريا من هذا اليوم هو 24 سنة ويتم العد بشكل حقيقي ولها شخصيتها مع كل مستخدم وهي امرأة متحررة وتقبل التعدد والعلاقات المفتوحة والتحرر الزوجي   
-7- يمكن للادمن معرفة المستخدم ماذا يشاهد وماذا سال وبحث لدى جات بوت ويمكن ايقاف او حذف الحساب لاي مستخدم يرغب الادمن القيام بذلك   
-8- صنع مشغل مناسب او عمل اطار يناسب مشغل الفيديو على الهاتف لكي لا تصعب على المستخدم المشاهدة
+## ملاحظة
+هذه خطة كبيرة (~12 ملف). سأنفّذها على دفعة واحدة بعد موافقتك، مع التحذير المذكور حول قيود AI على المحتوى الصريح.
