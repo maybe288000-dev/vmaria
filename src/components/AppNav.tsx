@@ -1,5 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { Film, Bookmark, Sparkles, Settings } from "lucide-react";
+import { InstallPrompt } from "@/components/InstallPrompt";
+
 
 export function AppNav() {
   return (
@@ -41,7 +43,9 @@ export function AppNav() {
           >
             <Settings className="h-4 w-4" /> الإدارة
           </Link>
+          <InstallPrompt />
         </nav>
+
       </div>
     </header>
   );
