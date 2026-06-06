@@ -1,4 +1,5 @@
 {
+  "id": "/",
   "name": "ماريا",
   "short_name": "ماريا",
   "description": "ماريا — منصة الأفلام مع مساعدتك الذكية",
@@ -7,12 +8,28 @@
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "orientation": "portrait",
+  "display_override": ["standalone", "minimal-ui"],
+  "orientation": "any",
   "background_color": "#0b0814",
   "theme_color": "#0b0814",
+  "categories": ["entertainment", "video"],
   "icons": [
     { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
     { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
     { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    {
+      "name": "ماريا — مساعدتك",
+      "short_name": "ماريا",
+      "url": "/chat",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "المحفوظات",
+      "short_name": "المحفوظات",
+      "url": "/saved",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    }
   ]
 }

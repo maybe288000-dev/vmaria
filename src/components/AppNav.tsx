@@ -19,7 +19,7 @@ export function AppNav() {
   };
 
   return (
-    <header className="sticky top-0 z-40 border-b border-border bg-background/80 backdrop-blur">
+    <header className="sticky top-0 z-40 border-b border-border bg-background/80 backdrop-blur safe-top">
       <div className="container mx-auto flex h-14 items-center justify-between px-3 gap-2">
         <Link to="/" className="flex items-center gap-2 font-bold text-lg shrink-0">
           <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-primary-glow">
