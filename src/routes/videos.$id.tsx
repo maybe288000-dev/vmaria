@@ -130,12 +130,12 @@ function VideoPage() {
   return (
     <div className="min-h-screen">
       <AppNav />
-      <main className="container mx-auto px-4 py-6">
-        <div className="grid lg:grid-cols-[1fr_360px] gap-6">
+      <main className="container mx-auto px-3 sm:px-4 py-4 sm:py-6">
+        <div className="grid lg:grid-cols-[1fr_360px] gap-4 sm:gap-6">
           <div>
             <div
               ref={playerRef}
-              className="relative aspect-video w-full overflow-hidden rounded-xl bg-black border border-border"
+              className="relative aspect-video w-full overflow-hidden rounded-xl bg-black border border-border lg:max-h-[80vh] no-select"
             >
               {playing ? (
                 <>
@@ -148,10 +148,11 @@ function VideoPage() {
                   />
                   <button
                     onClick={goFullscreen}
-                    className="absolute top-2 left-2 z-10 rounded-full bg-black/60 p-2 text-white hover:bg-black/80"
+                    className="absolute top-2 left-2 z-10 inline-flex items-center gap-1.5 rounded-full bg-black/70 px-3 py-2 text-xs sm:text-sm text-white hover:bg-black/90 backdrop-blur"
                     aria-label="ملء الشاشة"
                   >
                     <Maximize2 className="h-4 w-4" />
+                    <span className="hidden sm:inline">ملء الشاشة</span>
                   </button>
                 </>
               ) : (
@@ -170,14 +171,14 @@ function VideoPage() {
                     />
                   ) : null}
                   <span className="absolute inset-0 flex items-center justify-center bg-black/30">
-                    <span className="inline-flex h-16 w-16 items-center justify-center rounded-full bg-primary/90 text-primary-foreground shadow-lg">
-                      <Play className="h-7 w-7 mr-0.5" />
+                    <span className="inline-flex h-16 w-16 sm:h-20 sm:w-20 items-center justify-center rounded-full bg-primary/90 text-primary-foreground shadow-lg">
+                      <Play className="h-8 w-8 mr-0.5" />
                     </span>
                   </span>
                 </button>
               )}
             </div>
-            <h1 className="mt-4 text-2xl font-bold">{v.title}</h1>
+            <h1 className="mt-4 text-xl sm:text-2xl font-bold">{v.title}</h1>
             {v.description && (
               <p className="mt-2 text-sm text-muted-foreground whitespace-pre-line">
                 {v.description}
