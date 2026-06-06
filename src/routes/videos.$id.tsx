@@ -52,10 +52,19 @@ function VideoPage() {
   }, [navigate, id]);
 
   const goFullscreen = () => {
-    const el = playerRef.current as any;
-    if (!el) return;
-    const fn = el.requestFullscreen || el.webkitRequestFullscreen || el.webkitEnterFullscreen;
-    if (fn) fn.call(el);
+    const container: any = playerRef.current;
+    if (!container) return;
+    const iframe = container.querySelector("iframe") as any;
+    const target = iframe || container;
+    const fn =
+      target.requestFullscreen ||
+      target.webkitRequestFullscreen ||
+      target.webkitEnterFullscreen ||
+      container.requestFullscreen ||
+      container.webkitRequestFullscreen;
+    if (fn) {
+      try { fn.call(iframe || container); } catch { /* ignore */ }
+    }
   };
 
   const q = useQuery({
