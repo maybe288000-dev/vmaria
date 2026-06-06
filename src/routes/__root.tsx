@@ -29,6 +29,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "twitter:description", content: "ماريا — منصة الأفلام الذكية مع مساعدتك ماريا" },
       { name: "twitter:card", content: "summary_large_image" },
       { property: "og:type", content: "website" },
+      { property: "og:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/eXsv4U4K9Faw4ERH4ZOeClUWkkh2/social-images/social-1780753863830-generated_image_(47).webp" },
+      { name: "twitter:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/eXsv4U4K9Faw4ERH4ZOeClUWkkh2/social-images/social-1780753863830-generated_image_(47).webp" },
     ],
     links: [
       { rel: "stylesheet", href: appCss },
