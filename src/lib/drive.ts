@@ -8,9 +8,17 @@ export function extractFolderId(input: string): string | null {
   return null;
 }
 
-export function drivePreviewUrl(fileId: string, startSec?: number): string {
-  const base = `https://drive.google.com/file/d/${fileId}/preview`;
-  return startSec && startSec > 0 ? `${base}?t=${Math.floor(startSec)}` : base;
+export function drivePreviewUrl(
+  fileId: string,
+  startSec?: number,
+  opts?: { autoplay?: boolean; mute?: boolean },
+): string {
+  const params = new URLSearchParams();
+  if (startSec && startSec > 0) params.set("t", String(Math.floor(startSec)));
+  if (opts?.autoplay) params.set("autoplay", "1");
+  if (opts?.mute) params.set("mute", "1");
+  const q = params.toString();
+  return `https://drive.google.com/file/d/${fileId}/preview${q ? `?${q}` : ""}`;
 }
 
 export function driveThumbnailUrl(fileId: string, size = 800): string {
