@@ -18,6 +18,7 @@ function HomePage() {
   const navigate = useNavigate();
   const [anonId, setAnonId] = useState<string>("");
   const [authed, setAuthedState] = useState(false);
+  const [search, setSearch] = useState("");
 
   useEffect(() => {
     setAnonId(getAnonId());
@@ -27,7 +28,12 @@ function HomePage() {
   const videos = useQuery({
     queryKey: ["public-videos"],
     queryFn: () => listPublicVideos(),
+    staleTime: 5 * 60_000,
   });
+
+  const filtered = (videos.data ?? []).filter((v: any) =>
+    search.trim() === "" ? true : v.title?.toLowerCase().includes(search.toLowerCase())
+  );
 
   const openVideo = (id: string) => {
     if (!isAuthed()) {
@@ -51,11 +57,29 @@ function HomePage() {
         </section>
 
         <section>
-          <h2 className="mb-3 text-lg font-bold">
-            كل الأفلام {videos.data ? `(${videos.data.length})` : ""}
-          </h2>
+          <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <h2 className="text-lg font-bold">
+              كل الأفلام {videos.data ? `(${filtered.length}/${videos.data.length})` : ""}
+            </h2>
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="ابحث عن فيلم..."
+              className="w-full sm:w-64 rounded-full border border-border bg-input px-4 py-2 text-sm outline-none focus:border-primary"
+            />
+          </div>
           {videos.isLoading ? (
-            <p className="text-muted-foreground">جارٍ التحميل...</p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+              {Array.from({ length: 10 }).map((_, i) => (
+                <div key={i} className="rounded-xl overflow-hidden bg-card border border-border animate-pulse">
+                  <div className="aspect-video bg-muted" />
+                  <div className="p-2 space-y-2">
+                    <div className="h-3 bg-muted rounded w-3/4" />
+                    <div className="h-3 bg-muted rounded w-1/2" />
+                  </div>
+                </div>
+              ))}
+            </div>
           ) : (videos.data ?? []).length === 0 ? (
             <div className="rounded-xl border border-dashed border-border p-12 text-center">
               <Film className="mx-auto mb-3 h-12 w-12 text-muted-foreground" />
@@ -68,7 +92,7 @@ function HomePage() {
             </div>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
-              {(videos.data ?? []).map((v: any) => (
+              {filtered.map((v: any) => (
                 <button
                   key={v.id}
                   onClick={() => openVideo(v.id)}
