@@ -54,16 +54,13 @@ function VideoPage() {
   const goFullscreen = () => {
     const container: any = playerRef.current;
     if (!container) return;
-    const iframe = container.querySelector("iframe") as any;
-    const target = iframe || container;
+    // Fullscreen the container (not the iframe) so our crop styling stays applied
     const fn =
-      target.requestFullscreen ||
-      target.webkitRequestFullscreen ||
-      target.webkitEnterFullscreen ||
       container.requestFullscreen ||
-      container.webkitRequestFullscreen;
+      container.webkitRequestFullscreen ||
+      container.webkitEnterFullscreen;
     if (fn) {
-      try { fn.call(iframe || container); } catch { /* ignore */ }
+      try { fn.call(container); } catch { /* ignore */ }
     }
   };
 
@@ -144,7 +141,8 @@ function VideoPage() {
                     src={drivePreviewUrl(v.drive_file_id, startSec)}
                     allow="autoplay; encrypted-media; fullscreen"
                     allowFullScreen
-                    className="h-full w-full"
+                    className="absolute left-0 w-full border-0"
+                    style={{ top: "-60px", height: "calc(100% + 120px)" }}
                   />
                   <button
                     onClick={goFullscreen}

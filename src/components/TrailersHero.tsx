@@ -98,7 +98,8 @@ export function TrailersHero({ onOpen }: { onOpen: (id: string) => void }) {
           key={`${v.id}-${randomStart}`}
           src={drivePreviewUrl(v.drive_file_id, randomStart, { autoplay: true, mute: true })}
           allow="autoplay; encrypted-media"
-          className="absolute inset-0 h-full w-full pointer-events-none"
+          className="absolute left-0 w-full pointer-events-none border-0"
+          style={{ top: "-60px", height: "calc(100% + 120px)" }}
           title={v.title}
         />
       )}
