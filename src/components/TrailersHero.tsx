@@ -95,7 +95,8 @@ export function TrailersHero({ onOpen }: { onOpen: (id: string) => void }) {
 
       {showIframe && (
         <iframe
-          src={drivePreviewUrl(v.drive_file_id, v.start_sec, { autoplay: true, mute: true })}
+          key={`${v.id}-${randomStart}`}
+          src={drivePreviewUrl(v.drive_file_id, randomStart, { autoplay: true, mute: true })}
           allow="autoplay; encrypted-media"
           className="absolute inset-0 h-full w-full pointer-events-none"
           title={v.title}
