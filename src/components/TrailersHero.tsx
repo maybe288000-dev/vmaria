@@ -12,9 +12,10 @@ export function TrailersHero({ onOpen }: { onOpen: (id: string) => void }) {
   });
   const [idx, setIdx] = useState(0);
   const [showIframe, setShowIframe] = useState(false);
+  const [randomStart, setRandomStart] = useState<number>(0);
   const touchX = useRef<number | null>(null);
 
-  // Auto-advance carousel
+  // Auto-advance carousel every 30s
   useEffect(() => {
     if (!data || data.length <= 1) return;
     const reduced =
@@ -24,16 +25,28 @@ export function TrailersHero({ onOpen }: { onOpen: (id: string) => void }) {
     const t = setInterval(() => {
       setShowIframe(false);
       setIdx((i) => (i + 1) % data.length);
-    }, 9000);
+    }, 30000);
     return () => clearInterval(t);
   }, [data]);
 
-  // Auto-trigger trailer almost immediately
+  // Pick a random start (10%..70% of duration; fallback 30..180s) then trigger trailer
   useEffect(() => {
     setShowIframe(false);
+    if (!data || data.length === 0) return;
+    const cur = data[idx];
+    const dur = cur?.duration_sec ?? 0;
+    let start = 0;
+    if (dur > 30) {
+      const min = Math.floor(dur * 0.1);
+      const max = Math.floor(dur * 0.7);
+      start = Math.floor(min + Math.random() * Math.max(1, max - min));
+    } else {
+      start = 30 + Math.floor(Math.random() * 150);
+    }
+    setRandomStart(start);
     const t = setTimeout(() => setShowIframe(true), 600);
     return () => clearTimeout(t);
-  }, [idx]);
+  }, [idx, data]);
 
   if (!data || data.length === 0) {
     return (
