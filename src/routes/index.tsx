@@ -18,6 +18,7 @@ function HomePage() {
   const navigate = useNavigate();
   const [anonId, setAnonId] = useState<string>("");
   const [authed, setAuthedState] = useState(false);
+  const [search, setSearch] = useState("");
 
   useEffect(() => {
     setAnonId(getAnonId());
@@ -27,7 +28,12 @@ function HomePage() {
   const videos = useQuery({
     queryKey: ["public-videos"],
     queryFn: () => listPublicVideos(),
+    staleTime: 5 * 60_000,
   });
+
+  const filtered = (videos.data ?? []).filter((v: any) =>
+    search.trim() === "" ? true : v.title?.toLowerCase().includes(search.toLowerCase())
+  );
 
   const openVideo = (id: string) => {
     if (!isAuthed()) {
