@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { Film, Bookmark, MessageCircle, Settings, LogOut } from "lucide-react";
+import { Film, Bookmark, Settings, LogOut } from "lucide-react";
 import { InstallPrompt } from "@/components/InstallPrompt";
 import { isAuthed, setAuthed } from "@/lib/auth-gate";
 import { useEffect, useState } from "react";
@@ -35,13 +35,6 @@ export function AppNav() {
             activeOptions={{ exact: true }}
           >
             الرئيسية
-          </Link>
-          <Link
-            to="/chat"
-            className="rounded-md px-2 py-2 hover:bg-accent inline-flex items-center gap-1 shrink-0"
-            activeProps={{ className: "rounded-md px-2 py-2 bg-accent inline-flex items-center gap-1 shrink-0" }}
-          >
-            <MessageCircle className="h-4 w-4" /> ماريا
           </Link>
           {authed && (
             <Link

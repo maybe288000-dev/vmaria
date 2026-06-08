@@ -99,7 +99,7 @@ export function TrailersHero({ onOpen }: { onOpen: (id: string) => void }) {
           src={drivePreviewUrl(v.drive_file_id, randomStart, { autoplay: true, mute: true })}
           allow="autoplay; encrypted-media"
           className="absolute left-0 w-full pointer-events-none border-0"
-          style={{ top: "-60px", height: "calc(100% + 120px)" }}
+          style={{ top: "-80px", height: "calc(100% + 160px)" }}
           title={v.title}
         />
       )}
