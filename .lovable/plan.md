@@ -1,38 +1,89 @@
 
-## الخطة
+## الهدف
+- الإدارة فقط (كلمة سر `6969`) تنشئ المستخدمين وتراقبهم حيّاً مع سجلّهم.
+- التصفّح مسموح للجميع. **تشغيل أي فلم يتطلب تسجيل دخول مستخدم.**
 
-### 1) حذف قسم المحادثة "ماريا"
-- حذف الملف: `src/routes/chat.tsx`
-- إزالة رابط "ماريا/المحادثة" من `src/components/AppNav.tsx` إن وُجد
+---
 
-### 2) كتم صوت التريلر + صوت طبيعي في الفلم
-- في `src/components/TrailersHero.tsx`: التريلر يُمرَّر `mute: true` بالفعل — التأكد من بقائه دائماً مكتوماً (لا زر فك كتم).
-- في `src/routes/videos.$id.tsx`: عند تشغيل الفلم، استدعاء `drivePreviewUrl(v.drive_file_id, startSec)` **بدون** `mute` (الوضع الحالي صحيح — سيتم التأكد فقط).
+## 1) قاعدة البيانات
+جدول جديد `app_users` لتخزين الحسابات التي ينشئها الأدمن:
 
-### 3) حذف قسم "اللقطات المميزة"
-- في `src/routes/videos.$id.tsx`: إزالة الـ `<aside>` الخاص بـ "اللقطات" وتحويل الـ grid إلى عمود واحد.
-- إزالة استيراد/استخدام `q.data.clips` من واجهة المستخدم (الإبقاء على البيانات في الـ backend دون عرض).
+```
+app_users:
+  id uuid PK (=identity used everywhere)
+  username text unique (lower-case)
+  display_name text
+  password_hash text   -- bcrypt
+  created_at, last_login_at, last_seen_at timestamptz
+  blocked boolean default false
+```
 
-### 4) استبدال أيقونة الموقع بالصورة المرفقة
-- نسخ الصورة المرفقة وقصّها إلى مربع (1:1) عبر `imagemagick`:
-  - `public/icon-512.png` (512×512)
-  - `public/icon-192.png` (192×192)
-  - `public/favicon.ico`
-- تحديث `public/manifest.webmanifest` و`src/routes/__root.tsx` للإشارة إلى الأيقونات الجديدة.
+- لا نغيّر باقي الجداول؛ سنستخدم `app_users.id` بدلاً من `anon_id` الحالي. كلاهما `uuid` فيتوافق دون migration بيانات.
+- تفعيل Realtime على `view_sessions` و `chat_messages` و `app_users` للوحة الإدارة الحيّة:
+  ```sql
+  ALTER PUBLICATION supabase_realtime ADD TABLE
+    public.app_users, public.view_sessions, public.chat_messages;
+  ```
+- جدول `blocked_users` يصبح غير مستخدم — نستبدله بحقل `blocked` في `app_users` (نُبقي الجدول كما هو لعدم كسر شيء، ونتجاهله في الكود الجديد).
 
-> ملاحظة: محتوى الصورة قد يُرفض من متاجر التطبيقات (PWA install) ومن بعض المتصفحات على الأجهزة المُدارة. سأستخدمها كما طلبت.
+> ملاحظة: السياسات الحالية `*_all` تسمح للجميع — لن نشدّدها الآن لتجنّب تعطيل الواجهة. كل الكتابات الحساسة تمر عبر serverFn بكلمة سر الأدمن.
 
-### 5) إخفاء أدوات مشغل Google Drive (تقديم/ترجيع/شريط)
-الكود الحالي يستخدم `top:-60px; height: calc(100% + 120px)` — هذا يُخفي الشريط العلوي/السفلي لكن **شريط التقدم (التقديم/الترجيع)** قد يظل مرئياً عند تحريك الماوس. التحسينات:
+---
 
-- زيادة قص الجزء السفلي إلى ~`-80px` علوي و `height: calc(100% + 160px)` لإخفاء شريط التقدم بالكامل في التريلر والفلم.
-- إضافة طبقة شفافة (`<div>`) فوق الجزء السفلي من الـ iframe في صفحة الفلم لمنع ظهور controls عند hover (مع ترك زر "ملء الشاشة" الخاص بنا فوقها).
-- في التريلر يبقى `pointer-events-none` (لا تفاعل).
-- في صفحة الفلم: الـ iframe يبقى تفاعلياً للنقر للتشغيل/الإيقاف فقط (نقرة في الوسط)، مع غطاء سفلي يمنع controls السفلية.
+## 2) واجهات السيرفر (`src/lib/video.functions.ts` + ملف جديد `auth.functions.ts`)
+- `userLogin({ username, password })` → يتحقق من bcrypt، يعيد `{ id, username, display_name }` (أو خطأ).
+- `userMe({ user_id })` → تأكيد أن الحساب موجود وغير محظور (للتحقق عند كل تحميل).
+- `adminCreateUser({ admin_password, username, password, display_name })` → يتحقق `admin_password==="6969"` ثم ينشئ السجل (bcrypt).
+- `adminResetUserPassword({ admin_password, user_id, new_password })`.
+- `adminSetBlocked({ admin_password, user_id, blocked })`.
+- `adminListAppUsers({ admin_password })` → كل المستخدمين مع: آخر نشاط، عدد الجلسات، إجمالي المشاهدة، آخر فلم.
+- `adminUserDetail({ admin_password, user_id })` → سجلّ المشاهدات والرسائل.
+- نضيف `bcryptjs` كاعتمادية (`bun add bcryptjs @types/bcryptjs`).
 
-### الملفات المتأثرة
-- حذف: `src/routes/chat.tsx`
-- تعديل: `src/components/AppNav.tsx`, `src/components/TrailersHero.tsx`, `src/routes/videos.$id.tsx`, `src/routes/__root.tsx`, `public/manifest.webmanifest`
-- استبدال: `public/icon-192.png`, `public/icon-512.png`, `public/favicon.ico`
+---
 
-بدون أي تغييرات في قاعدة البيانات أو المصادقة.
+## 3) هويّة العميل (`src/lib/auth-gate.ts` و `anon-id.ts`)
+- `maria_user_v1` في localStorage: `{ id, username, display_name }`.
+- `getCurrentUser()` ، `isUserAuthed()` → بناءً على هذا المفتاح.
+- `getAnonId()` يعيد `user.id` إن وُجد، وإلا يعيد سلسلة فارغة (لا نُسجّل نشاطاً للزوّار).
+- `isAdminAuthed()` يبقى منفصلاً عبر مفتاح `maria_admin_v1` يُضبط بعد تمرير `6969` في `/admin/login`.
+
+---
+
+## 4) المسارات والتدفّق
+
+### `/` (تصفّح حر)
+- يظهر للجميع بدون تسجيل. عند الضغط على فلم: إن لم يكن المستخدم مسجلاً، تحويل إلى `/login`. لا redirect على مجرد فتح الصفحة.
+
+### `/login` (مستخدم)
+- نموذج: اسم المستخدم + كلمة المرور → `userLogin`. عند النجاح: حفظ `maria_user_v1` + توجيه إلى `redirect` أو `/`.
+- يحتوي رابطاً: "هل أنت الأدمن؟ ادخل من هنا" → `/admin/login`.
+
+### `/admin/login` (إدارة)
+- إدخال `6969` فقط. يضبط `maria_admin_v1`. كل صفحات `/admin/*` تتطلّبه (وليس تسجيل مستخدم).
+
+### `/videos/$id`
+- يتطلّب `isUserAuthed()`. خلاف ذلك → `/login?redirect=...`.
+
+### استبدال `/auth`
+- المسار القديم `/auth` سيُحوّل إلى `/login` (back-compat).
+
+### لوحة الإدارة `/admin/users`
+- جدول المستخدمين مع أعمدة: الاسم، آخر نشاط، الحالة (متّصل الآن إن كانت `view_sessions` تتحدّث خلال آخر 60 ثانية)، إجمالي المشاهدة، آخر فلم، أزرار: عرض السجلّ، إعادة تعيين كلمة المرور، حظر، حذف.
+- **زرّ "مستخدم جديد"** يفتح نافذة لإدخال اسم/كلمة سر/اسم العرض.
+- اشتراك Realtime على `view_sessions` و `chat_messages` يبثّ التحديثات فوراً (`useEffect` + `supabase.channel(...).on('postgres_changes', ...)` + invalidate React Query).
+
+---
+
+## 5) ملفات سيتم تعديلها/إنشاؤها
+- إنشاء: `src/routes/login.tsx`, `src/routes/admin/login.tsx`, `src/lib/auth.functions.ts`.
+- تعديل: `src/lib/auth-gate.ts`, `src/lib/anon-id.ts`, `src/routes/index.tsx`, `src/routes/videos.$id.tsx`, `src/routes/admin.tsx`, `src/routes/admin.users.tsx`, `src/components/AppNav.tsx` (إظهار اسم المستخدم وزر خروج)، `src/components/TrailersHero.tsx` (زر "شاهد الآن" يعتمد على تسجيل دخول المستخدم).
+- إضافة dependency: `bcryptjs`.
+
+---
+
+## نقاط أمنيّة
+- كلمة سر الأدمن `6969` ضعيفة لكنها طلب صريح من المستخدم — تُحفظ مهشّمة في الكود السيرفري ويتم التحقق عبر `timingSafeEqual`.
+- كل serverFn إدارية تطلب `admin_password` في الـ payload وتفشل بـ 401 إن كان خطأ.
+- كلمات سر المستخدمين تُهشّم bcrypt (10 جولات) ولا تُعاد إطلاقاً للعميل.
+- حدود طول/أحرف عبر zod لكل المدخلات.
