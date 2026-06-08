@@ -38,6 +38,39 @@ export type Database = {
         }
         Relationships: []
       }
+      app_users: {
+        Row: {
+          blocked: boolean
+          created_at: string
+          display_name: string | null
+          id: string
+          last_login_at: string | null
+          last_seen_at: string | null
+          password_hash: string
+          username: string
+        }
+        Insert: {
+          blocked?: boolean
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          last_login_at?: string | null
+          last_seen_at?: string | null
+          password_hash: string
+          username: string
+        }
+        Update: {
+          blocked?: boolean
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          last_login_at?: string | null
+          last_seen_at?: string | null
+          password_hash?: string
+          username?: string
+        }
+        Relationships: []
+      }
       blocked_users: {
         Row: {
           anon_id: string
