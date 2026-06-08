@@ -1,4 +1,10 @@
+// Identity used for all activity rows in the DB.
+// If a Maria user is logged in, we use their `app_users.id`.
+// Otherwise we fall back to a per-browser anonymous UUID so guest browsing
+// (e.g. trailers carousel) still works.
+
 const KEY = "anon_id";
+const USER_KEY = "maria_user_v1";
 
 function uuid(): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
@@ -13,6 +19,15 @@ function uuid(): string {
 
 export function getAnonId(): string {
   if (typeof window === "undefined") return "00000000-0000-0000-0000-000000000000";
+  try {
+    const raw = localStorage.getItem(USER_KEY);
+    if (raw) {
+      const u = JSON.parse(raw);
+      if (u?.id) return u.id as string;
+    }
+  } catch {
+    /* ignore */
+  }
   let id = localStorage.getItem(KEY);
   if (!id) {
     id = uuid();
