@@ -1,20 +1,35 @@
 import { Link } from "@tanstack/react-router";
-import { Film, Bookmark, Settings, LogOut } from "lucide-react";
+import { Film, Bookmark, Settings, LogOut, LogIn, User } from "lucide-react";
 import { InstallPrompt } from "@/components/InstallPrompt";
-import { isAuthed, setAuthed } from "@/lib/auth-gate";
+import {
+  getCurrentUser,
+  isUserAuthed,
+  isAdminAuthed,
+  setCurrentUser,
+  setAdminAuthed,
+  type CurrentUser,
+} from "@/lib/auth-gate";
 import { useEffect, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 
 export function AppNav() {
-  const [authed, setAuthedState] = useState(false);
+  const [user, setUser] = useState<CurrentUser | null>(null);
+  const [admin, setAdmin] = useState(false);
   const navigate = useNavigate();
+
   useEffect(() => {
-    setAuthedState(isAuthed());
+    setUser(getCurrentUser());
+    setAdmin(isAdminAuthed());
   }, []);
 
-  const logout = () => {
-    setAuthed(false);
-    setAuthedState(false);
+  const logoutUser = () => {
+    setCurrentUser(null);
+    setUser(null);
+    navigate({ to: "/" });
+  };
+  const logoutAdmin = () => {
+    setAdminAuthed(false);
+    setAdmin(false);
     navigate({ to: "/" });
   };
 
@@ -36,7 +51,7 @@ export function AppNav() {
           >
             الرئيسية
           </Link>
-          {authed && (
+          {user && (
             <Link
               to="/saved"
               className="rounded-md px-2 py-2 hover:bg-accent inline-flex items-center gap-1 shrink-0"
@@ -45,23 +60,46 @@ export function AppNav() {
               <Bookmark className="h-4 w-4" /> المحفوظات
             </Link>
           )}
-          {authed && (
+          {admin && (
             <Link
               to="/admin"
               className="rounded-md px-2 py-2 hover:bg-accent inline-flex items-center gap-1 text-muted-foreground shrink-0"
               activeProps={{ className: "rounded-md px-2 py-2 bg-accent inline-flex items-center gap-1 shrink-0" }}
+              aria-label="الإدارة"
             >
               <Settings className="h-4 w-4" />
             </Link>
           )}
           <InstallPrompt />
-          {authed && (
-            <button
-              onClick={logout}
-              className="rounded-md px-2 py-2 hover:bg-accent text-muted-foreground shrink-0"
-              aria-label="تسجيل خروج"
+          {user ? (
+            <>
+              <span className="hidden sm:inline-flex items-center gap-1 rounded-md px-2 py-2 text-muted-foreground shrink-0">
+                <User className="h-4 w-4" /> {user.display_name || user.username}
+              </span>
+              <button
+                onClick={logoutUser}
+                className="rounded-md px-2 py-2 hover:bg-accent text-muted-foreground shrink-0"
+                aria-label="تسجيل خروج"
+                title="تسجيل خروج"
+              >
+                <LogOut className="h-4 w-4" />
+              </button>
+            </>
+          ) : (
+            <Link
+              to="/login"
+              className="rounded-md px-2 py-2 hover:bg-accent inline-flex items-center gap-1 shrink-0"
             >
-              <LogOut className="h-4 w-4" />
+              <LogIn className="h-4 w-4" /> دخول
+            </Link>
+          )}
+          {admin && (
+            <button
+              onClick={logoutAdmin}
+              className="rounded-md px-2 py-2 hover:bg-accent text-xs text-muted-foreground shrink-0"
+              title="خروج الإدارة"
+            >
+              خروج الإدارة
             </button>
           )}
         </nav>
