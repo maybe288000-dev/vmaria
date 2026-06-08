@@ -128,7 +128,7 @@ function VideoPage() {
     <div className="min-h-screen">
       <AppNav />
       <main className="container mx-auto px-3 sm:px-4 py-4 sm:py-6">
-        <div className="grid lg:grid-cols-[1fr_360px] gap-4 sm:gap-6">
+        <div className="max-w-5xl mx-auto">
           <div>
             <div
               ref={playerRef}
@@ -142,7 +142,13 @@ function VideoPage() {
                     allow="autoplay; encrypted-media; fullscreen"
                     allowFullScreen
                     className="absolute left-0 w-full border-0"
-                    style={{ top: "-60px", height: "calc(100% + 120px)" }}
+                    style={{ top: "-80px", height: "calc(100% + 160px)" }}
+                  />
+                  {/* Block Google Drive's bottom control bar (seek/forward/rewind) */}
+                  <div
+                    className="absolute left-0 right-0 bottom-0 h-16 z-[5]"
+                    style={{ pointerEvents: "auto" }}
+                    aria-hidden="true"
                   />
                   <button
                     onClick={goFullscreen}
@@ -209,48 +215,6 @@ function VideoPage() {
 
             <CommentsBlock videoId={id} anonId={anonId} initial={q.data.comments} />
           </div>
-
-          <aside>
-            <h2 className="text-lg font-bold mb-3">اللقطات</h2>
-            {q.data.clips.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                لا توجد لقطات بعد. يمكن للأدمن توليدها من صفحة الإدارة.
-              </p>
-            ) : (
-              <ul className="space-y-2">
-                {q.data.clips.map((c: any) => (
-                  <li key={c.id}>
-                    <button
-                      onClick={() => { setStartSec(c.start_sec); setPlaying(true); }}
-                      className="w-full text-right rounded-lg border border-border bg-card p-3 hover:border-primary/50"
-                    >
-                      <div className="flex justify-between items-center gap-2">
-                        <span className="font-medium line-clamp-1">{c.title}</span>
-                        <span className="text-xs text-primary shrink-0">{fmt(c.start_sec)}</span>
-                      </div>
-                      {c.description && (
-                        <p className="mt-1 text-xs text-muted-foreground line-clamp-2">
-                          {c.description}
-                        </p>
-                      )}
-                      {c.tags?.length > 0 && (
-                        <div className="mt-2 flex flex-wrap gap-1">
-                          {c.tags.slice(0, 4).map((t: string, i: number) => (
-                            <span
-                              key={i}
-                              className="rounded-full bg-accent/50 px-2 py-0.5 text-[10px]"
-                            >
-                              #{t}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </aside>
         </div>
       </main>
     </div>
