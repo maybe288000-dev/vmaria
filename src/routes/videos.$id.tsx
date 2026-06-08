@@ -128,7 +128,7 @@ function VideoPage() {
     <div className="min-h-screen">
       <AppNav />
       <main className="container mx-auto px-3 sm:px-4 py-4 sm:py-6">
-        <div className="grid lg:grid-cols-[1fr_360px] gap-4 sm:gap-6">
+        <div className="max-w-5xl mx-auto">
           <div>
             <div
               ref={playerRef}
@@ -142,7 +142,13 @@ function VideoPage() {
                     allow="autoplay; encrypted-media; fullscreen"
                     allowFullScreen
                     className="absolute left-0 w-full border-0"
-                    style={{ top: "-60px", height: "calc(100% + 120px)" }}
+                    style={{ top: "-80px", height: "calc(100% + 160px)" }}
+                  />
+                  {/* Block Google Drive's bottom control bar (seek/forward/rewind) */}
+                  <div
+                    className="absolute left-0 right-0 bottom-0 h-16 z-[5]"
+                    style={{ pointerEvents: "auto" }}
+                    aria-hidden="true"
                   />
                   <button
                     onClick={goFullscreen}
