@@ -1,6 +1,6 @@
 import { createFileRoute, Link, Outlet, useNavigate } from "@tanstack/react-router";
 import { useEffect } from "react";
-import { isAuthed } from "@/lib/auth-gate";
+import { isAdminAuthed } from "@/lib/auth-gate";
 
 export const Route = createFileRoute("/admin")({
   component: AdminLayout,
@@ -9,7 +9,7 @@ export const Route = createFileRoute("/admin")({
 function AdminLayout() {
   const navigate = useNavigate();
   useEffect(() => {
-    if (!isAuthed()) navigate({ to: "/auth", search: { redirect: "/admin" } });
+    if (!isAdminAuthed()) navigate({ to: "/admin/login", search: { redirect: "/admin" } });
   }, [navigate]);
 
   return (

@@ -8,7 +8,7 @@ import { ClipsMarquee } from "@/components/ClipsMarquee";
 import { ContinueWatching } from "@/components/ContinueWatching";
 import { Play, Film, Lock } from "lucide-react";
 import { getAnonId } from "@/lib/anon-id";
-import { isAuthed } from "@/lib/auth-gate";
+import { isUserAuthed } from "@/lib/auth-gate";
 
 export const Route = createFileRoute("/")({
   component: HomePage,
@@ -22,7 +22,7 @@ function HomePage() {
 
   useEffect(() => {
     setAnonId(getAnonId());
-    setAuthedState(isAuthed());
+    setAuthedState(isUserAuthed());
   }, []);
 
   const videos = useQuery({
@@ -36,8 +36,8 @@ function HomePage() {
   );
 
   const openVideo = (id: string) => {
-    if (!isAuthed()) {
-      navigate({ to: "/auth", search: { redirect: `/videos/${id}` } });
+    if (!isUserAuthed()) {
+      navigate({ to: "/login", search: { redirect: `/videos/${id}` } });
       return;
     }
     navigate({ to: "/videos/$id", params: { id } });

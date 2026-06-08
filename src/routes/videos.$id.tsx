@@ -13,7 +13,7 @@ import {
 } from "@/lib/video.functions";
 import { drivePreviewUrl } from "@/lib/drive";
 import { getAnonId } from "@/lib/anon-id";
-import { isAuthed } from "@/lib/auth-gate";
+import { isUserAuthed } from "@/lib/auth-gate";
 import { ThumbsUp, ThumbsDown, Bookmark, Star, Send, Play, Maximize2 } from "lucide-react";
 import { toast } from "sonner";
 import { useNavigate } from "@tanstack/react-router";
@@ -44,8 +44,8 @@ function VideoPage() {
   const playerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!isAuthed()) {
-      navigate({ to: "/auth", search: { redirect: `/videos/${id}` } });
+    if (!isUserAuthed()) {
+      navigate({ to: "/login", search: { redirect: `/videos/${id}` } });
       return;
     }
     setAnonId(getAnonId());
