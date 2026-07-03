@@ -1,89 +1,55 @@
+# خطة تحسين الموقع
 
-## الهدف
-- الإدارة فقط (كلمة سر `6969`) تنشئ المستخدمين وتراقبهم حيّاً مع سجلّهم.
-- التصفّح مسموح للجميع. **تشغيل أي فلم يتطلب تسجيل دخول مستخدم.**
+## 1. تبسيط مشغل الفيديو (`src/routes/videos.$id.tsx`)
+- شريط تحكم علوي واحد شفاف يظهر عند تحريك الماوس/اللمس ويختفي بعد 3 ثوانٍ: «رجوع» + عنوان الفيلم + «ملء الشاشة».
+- إزالة الحاشية السوداء العلوية/السفلية الزائدة من iframe كوكل درايف بضبط أدق (`top:-56px, height: calc(100%+112px)`) لتقليل الاقتطاع وإبقاء الفيديو ممتلئاً.
+- إبقاء الحاجب السفلي لمنع شريط تحكم درايف، لكن جعله يختفي مع شريط التحكم العلوي لإظهار الفيديو صافياً.
+- زر «تشغيل» مركزي كبير على الغلاف مع تدرّج داكن أسفل لعرض العنوان بوضوح.
+- إخفاء التعليقات وأزرار الإعجاب أسفل الطية (accordion مطوي افتراضياً) لتقليل الفوضى.
 
----
+## 2. استكمال المشاهدة التلقائي
+- عند فتح `/videos/$id` بدون `?t=`، اقرأ آخر `seconds_watched` من `view_sessions` للمستخدم الحالي عبر server function جديدة `getResumePoint({video_id, user_id})`.
+- إذا كان > 30 ثانية و < 90% من المدة، ابدأ تلقائياً من تلك النقطة (استخدم iframe بـ `#t=` من `drivePreviewUrl`) وأظهر إشعار خفيف: «تم استئناف المشاهدة من د:ث — [ابدأ من البداية]».
+- التخزين المؤقت يستمر عبر heartbeat الحالي (لا تغيير في المخطط).
 
-## 1) قاعدة البيانات
-جدول جديد `app_users` لتخزين الحسابات التي ينشئها الأدمن:
+## 3. زر الرجوع الذكي
+- **استعادة الموضع في الرئيسية**: حفظ `scrollY` + قيمة البحث في `sessionStorage` قبل فتح فيلم؛ عند العودة استعادتها.
+- **زر رجوع داخل صفحة الفيلم**: أيقونة سهم أعلى يمين المشغل تستدعي `router.history.back()` مع fallback إلى `/`.
+- تعطيل scroll-to-top الافتراضي للصفحة الرئيسية عند العودة.
 
-```
-app_users:
-  id uuid PK (=identity used everywhere)
-  username text unique (lower-case)
-  display_name text
-  password_hash text   -- bcrypt
-  created_at, last_login_at, last_seen_at timestamptz
-  blocked boolean default false
-```
+## 4. ترتيب الصفحة الرئيسية (`src/routes/index.tsx`)
+- تسلسل جديد: (أ) هيرو التريلر (كما هو، مكتوم) (ب) «تابع المشاهدة» إن وُجد (ج) «لقطات مميزة» (د) شبكة كل الأفلام مع بحث ثابت.
+- بطاقات الأفلام: زوايا أنعم، ظل خفيف عند التحويم، شارة المدة بأسفل يمين، إخفاء أيقونة القفل واستبدالها بتراكب رقيق «سجّل الدخول للمشاهدة» عند التحويم فقط لغير المسجلين.
+- شبكة أكثر تنفساً: `gap-4`، 2/3/4/5 أعمدة حسب الشاشة.
 
-- لا نغيّر باقي الجداول؛ سنستخدم `app_users.id` بدلاً من `anon_id` الحالي. كلاهما `uuid` فيتوافق دون migration بيانات.
-- تفعيل Realtime على `view_sessions` و `chat_messages` و `app_users` للوحة الإدارة الحيّة:
-  ```sql
-  ALTER PUBLICATION supabase_realtime ADD TABLE
-    public.app_users, public.view_sessions, public.chat_messages;
-  ```
-- جدول `blocked_users` يصبح غير مستخدم — نستبدله بحقل `blocked` في `app_users` (نُبقي الجدول كما هو لعدم كسر شيء، ونتجاهله في الكود الجديد).
+## 5. الوصف التلقائي عبر Lovable AI
+- **جديد** `src/lib/ai.functions.ts` — server function `generateVideoDescription({video_id})` محمي بـ `requireSupabaseAuth` + فحص دور admin.
+  - يقرأ `title` من `videos`، ينادي `google/gemini-3-flash-preview` عبر AI Gateway بـ prompt عربي قصير: «اكتب وصفاً جذاباً من 2–3 أسطر لفيلم بعنوان: X. بدون مقدمات».
+  - يحدّث `videos.description` ويعيد النص.
+- **زر في `admin.videos.tsx`**: «توليد وصف» بجوار كل فيلم + زر جماعي «توليد لكل الأفلام بدون وصف» (تسلسلياً مع تأخير 1s).
 
-> ملاحظة: السياسات الحالية `*_all` تسمح للجميع — لن نشدّدها الآن لتجنّب تعطيل الواجهة. كل الكتابات الحساسة تمر عبر serverFn بكلمة سر الأدمن.
+## 6. توليد اللقطات المميزة (استعادة القسم)
+- **server function** `generateClipsForVideo({video_id})` (admin-only): يستخدم مدة الفيلم لتوليد 3–5 لقطات موزّعة بذكاء (عند 15%, 35%, 55%, 75% من المدة، متجاوزاً أول/آخر 60 ثانية)، لكل لقطة عنوان مقترح عبر Lovable AI («اقترح 4 عناوين جذابة قصيرة للحظات مميزة من فيلم بعنوان: X»)، ومدة 30 ثانية.
+- يخزّنها في جدول `clips` الموجود (لا تغيير مخطط).
+- **زر «إعادة توليد اللقطات»** في `admin.videos.tsx` لكل فيلم + زر جماعي.
+- **قسم في الرئيسية**: استعادة `ClipsMarquee` مع تحسينات: عرض 24 لقطة عشوائية، سكرول سلس، الضغط يفتح الفيلم عند نقطة اللقطة (يعمل مع منطق استكمال المشاهدة).
 
----
+## تفاصيل تقنية
 
-## 2) واجهات السيرفر (`src/lib/video.functions.ts` + ملف جديد `auth.functions.ts`)
-- `userLogin({ username, password })` → يتحقق من bcrypt، يعيد `{ id, username, display_name }` (أو خطأ).
-- `userMe({ user_id })` → تأكيد أن الحساب موجود وغير محظور (للتحقق عند كل تحميل).
-- `adminCreateUser({ admin_password, username, password, display_name })` → يتحقق `admin_password==="6969"` ثم ينشئ السجل (bcrypt).
-- `adminResetUserPassword({ admin_password, user_id, new_password })`.
-- `adminSetBlocked({ admin_password, user_id, blocked })`.
-- `adminListAppUsers({ admin_password })` → كل المستخدمين مع: آخر نشاط، عدد الجلسات، إجمالي المشاهدة، آخر فلم.
-- `adminUserDetail({ admin_password, user_id })` → سجلّ المشاهدات والرسائل.
-- نضيف `bcryptjs` كاعتمادية (`bun add bcryptjs @types/bcryptjs`).
+**ملفات جديدة:**
+- `src/lib/ai.functions.ts` — `generateVideoDescription`, `generateClipsForVideo`.
+- `src/lib/scroll-restore.ts` — helpers لحفظ/استعادة scroll.
 
----
+**تعديلات:**
+- `src/routes/videos.$id.tsx`: مشغل مبسّط + استكمال تلقائي + زر رجوع.
+- `src/routes/index.tsx`: ترتيب + استعادة scroll + استعادة `ClipsMarquee`.
+- `src/lib/video.functions.ts`: إضافة `getResumePoint`.
+- `src/routes/admin.videos.tsx`: أزرار توليد الوصف واللقطات.
+- `src/router.tsx`: تعطيل `scrollRestoration` الافتراضي والاعتماد على منطق مخصص، أو الإبقاء عليه إن كفى.
+- `src/components/ClipsMarquee.tsx`: تمرير `t` عند النقر (موجود بالفعل ✓).
 
-## 3) هويّة العميل (`src/lib/auth-gate.ts` و `anon-id.ts`)
-- `maria_user_v1` في localStorage: `{ id, username, display_name }`.
-- `getCurrentUser()` ، `isUserAuthed()` → بناءً على هذا المفتاح.
-- `getAnonId()` يعيد `user.id` إن وُجد، وإلا يعيد سلسلة فارغة (لا نُسجّل نشاطاً للزوّار).
-- `isAdminAuthed()` يبقى منفصلاً عبر مفتاح `maria_admin_v1` يُضبط بعد تمرير `6969` في `/admin/login`.
+**نموذج AI:** `google/gemini-3-flash-preview` (سريع، رخيص، عربي ممتاز، افتراضي).
 
----
+**بدون تغييرات قاعدة بيانات** — كل الجداول المطلوبة موجودة (`videos.description`, `clips`, `view_sessions`).
 
-## 4) المسارات والتدفّق
-
-### `/` (تصفّح حر)
-- يظهر للجميع بدون تسجيل. عند الضغط على فلم: إن لم يكن المستخدم مسجلاً، تحويل إلى `/login`. لا redirect على مجرد فتح الصفحة.
-
-### `/login` (مستخدم)
-- نموذج: اسم المستخدم + كلمة المرور → `userLogin`. عند النجاح: حفظ `maria_user_v1` + توجيه إلى `redirect` أو `/`.
-- يحتوي رابطاً: "هل أنت الأدمن؟ ادخل من هنا" → `/admin/login`.
-
-### `/admin/login` (إدارة)
-- إدخال `6969` فقط. يضبط `maria_admin_v1`. كل صفحات `/admin/*` تتطلّبه (وليس تسجيل مستخدم).
-
-### `/videos/$id`
-- يتطلّب `isUserAuthed()`. خلاف ذلك → `/login?redirect=...`.
-
-### استبدال `/auth`
-- المسار القديم `/auth` سيُحوّل إلى `/login` (back-compat).
-
-### لوحة الإدارة `/admin/users`
-- جدول المستخدمين مع أعمدة: الاسم، آخر نشاط، الحالة (متّصل الآن إن كانت `view_sessions` تتحدّث خلال آخر 60 ثانية)، إجمالي المشاهدة، آخر فلم، أزرار: عرض السجلّ، إعادة تعيين كلمة المرور، حظر، حذف.
-- **زرّ "مستخدم جديد"** يفتح نافذة لإدخال اسم/كلمة سر/اسم العرض.
-- اشتراك Realtime على `view_sessions` و `chat_messages` يبثّ التحديثات فوراً (`useEffect` + `supabase.channel(...).on('postgres_changes', ...)` + invalidate React Query).
-
----
-
-## 5) ملفات سيتم تعديلها/إنشاؤها
-- إنشاء: `src/routes/login.tsx`, `src/routes/admin/login.tsx`, `src/lib/auth.functions.ts`.
-- تعديل: `src/lib/auth-gate.ts`, `src/lib/anon-id.ts`, `src/routes/index.tsx`, `src/routes/videos.$id.tsx`, `src/routes/admin.tsx`, `src/routes/admin.users.tsx`, `src/components/AppNav.tsx` (إظهار اسم المستخدم وزر خروج)، `src/components/TrailersHero.tsx` (زر "شاهد الآن" يعتمد على تسجيل دخول المستخدم).
-- إضافة dependency: `bcryptjs`.
-
----
-
-## نقاط أمنيّة
-- كلمة سر الأدمن `6969` ضعيفة لكنها طلب صريح من المستخدم — تُحفظ مهشّمة في الكود السيرفري ويتم التحقق عبر `timingSafeEqual`.
-- كل serverFn إدارية تطلب `admin_password` في الـ payload وتفشل بـ 401 إن كان خطأ.
-- كلمات سر المستخدمين تُهشّم bcrypt (10 جولات) ولا تُعاد إطلاقاً للعميل.
-- حدود طول/أحرف عبر zod لكل المدخلات.
+**بدون تغيير في**: نظام تسجيل الدخول، الأيقونات، manifest، صلاحيات الإدارة (6969).

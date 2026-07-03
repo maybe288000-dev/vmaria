@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { listPublicVideos } from "@/lib/video.functions";
 import { AppNav } from "@/components/AppNav";
 import { TrailersHero } from "@/components/TrailersHero";
@@ -9,6 +9,7 @@ import { ContinueWatching } from "@/components/ContinueWatching";
 import { Play, Film, Lock } from "lucide-react";
 import { getAnonId } from "@/lib/anon-id";
 import { isUserAuthed } from "@/lib/auth-gate";
+import { saveHomeState, loadHomeState } from "@/lib/scroll-restore";
 
 export const Route = createFileRoute("/")({
   component: HomePage,
@@ -18,7 +19,7 @@ function HomePage() {
   const navigate = useNavigate();
   const [anonId, setAnonId] = useState<string>("");
   const [authed, setAuthedState] = useState(false);
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(() => loadHomeState().search);
 
   useEffect(() => {
     setAnonId(getAnonId());
@@ -31,11 +32,23 @@ function HomePage() {
     staleTime: 5 * 60_000,
   });
 
+  // Restore scroll position once, after videos have first rendered
+  const restoredRef = useRef(false);
+  useLayoutEffect(() => {
+    if (!videos.data || restoredRef.current) return;
+    restoredRef.current = true;
+    const { scrollY } = loadHomeState();
+    if (scrollY > 0) {
+      requestAnimationFrame(() => window.scrollTo(0, scrollY));
+    }
+  }, [videos.data]);
+
   const filtered = (videos.data ?? []).filter((v: any) =>
     search.trim() === "" ? true : v.title?.toLowerCase().includes(search.toLowerCase())
   );
 
   const openVideo = (id: string) => {
+    saveHomeState(window.scrollY, search);
     if (!isUserAuthed()) {
       navigate({ to: "/login", search: { redirect: `/videos/${id}` } });
       return;
@@ -69,9 +82,9 @@ function HomePage() {
             />
           </div>
           {videos.isLoading ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
               {Array.from({ length: 10 }).map((_, i) => (
-                <div key={i} className="rounded-xl overflow-hidden bg-card border border-border animate-pulse">
+                <div key={i} className="rounded-2xl overflow-hidden bg-card border border-border animate-pulse">
                   <div className="aspect-video bg-muted" />
                   <div className="p-2 space-y-2">
                     <div className="h-3 bg-muted rounded w-3/4" />
@@ -91,19 +104,19 @@ function HomePage() {
               )}
             </div>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
               {filtered.map((v: any) => (
                 <button
                   key={v.id}
                   onClick={() => openVideo(v.id)}
-                  className="group rounded-xl overflow-hidden bg-card border border-border hover:border-primary/50 transition-all text-right"
+                  className="group rounded-2xl overflow-hidden bg-card border border-border hover:border-primary/60 hover:shadow-lg hover:shadow-primary/10 transition-all text-right"
                 >
                   <div className="relative aspect-video bg-muted overflow-hidden">
                     {v.thumbnail_url ? (
                       <img
                         src={v.thumbnail_url}
                         alt={v.title}
-                        className="h-full w-full object-cover group-hover:scale-105 transition-transform"
+                        className="h-full w-full object-cover group-hover:scale-[1.03] transition-transform duration-500"
                         loading="lazy"
                         referrerPolicy="no-referrer"
                       />
@@ -112,20 +125,23 @@ function HomePage() {
                         <Film className="h-10 w-10 text-muted-foreground" />
                       </div>
                     )}
-                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                       {authed ? (
-                        <Play className="h-12 w-12 text-white" />
+                        <Play className="h-12 w-12 text-white drop-shadow" />
                       ) : (
-                        <Lock className="h-10 w-10 text-white" />
+                        <div className="flex flex-col items-center gap-1 text-white">
+                          <Lock className="h-7 w-7" />
+                          <span className="text-[11px]">سجّل الدخول</span>
+                        </div>
                       )}
                     </div>
                     {v.duration_sec ? (
-                      <span className="absolute bottom-1 left-1 rounded bg-black/70 px-1.5 py-0.5 text-[10px] text-white">
+                      <span className="absolute bottom-1.5 right-1.5 rounded bg-black/75 px-1.5 py-0.5 text-[10px] text-white">
                         {Math.floor(v.duration_sec / 60)}د
                       </span>
                     ) : null}
                   </div>
-                  <div className="p-2">
+                  <div className="p-2.5">
                     <h3 className="font-semibold line-clamp-2 text-xs sm:text-sm">{v.title}</h3>
                   </div>
                 </button>
