@@ -32,9 +32,11 @@ function HomePage() {
     staleTime: 5 * 60_000,
   });
 
-  // Restore scroll position once videos have rendered
+  // Restore scroll position once, after videos have first rendered
+  const restoredRef = useRef(false);
   useLayoutEffect(() => {
-    if (!videos.data) return;
+    if (!videos.data || restoredRef.current) return;
+    restoredRef.current = true;
     const { scrollY } = loadHomeState();
     if (scrollY > 0) {
       requestAnimationFrame(() => window.scrollTo(0, scrollY));
