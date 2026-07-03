@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useLayoutEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { listPublicVideos } from "@/lib/video.functions";
 import { AppNav } from "@/components/AppNav";
 import { TrailersHero } from "@/components/TrailersHero";
