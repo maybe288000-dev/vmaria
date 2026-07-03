@@ -10,13 +10,24 @@ import {
   addComment,
   startViewSession,
   heartbeatViewSession,
+  getResumePoint,
 } from "@/lib/video.functions";
 import { drivePreviewUrl } from "@/lib/drive";
 import { getAnonId } from "@/lib/anon-id";
 import { isUserAuthed } from "@/lib/auth-gate";
-import { ThumbsUp, ThumbsDown, Bookmark, Star, Send, Play, Maximize2 } from "lucide-react";
+import {
+  ThumbsUp,
+  ThumbsDown,
+  Bookmark,
+  Star,
+  Send,
+  Play,
+  Maximize2,
+  ArrowRight,
+  ChevronDown,
+} from "lucide-react";
 import { toast } from "sonner";
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, useRouter } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/videos/$id")({
   validateSearch: (s: Record<string, unknown>) => ({
@@ -36,12 +47,17 @@ function VideoPage() {
   const { t: tParam } = Route.useSearch();
   const qc = useQueryClient();
   const navigate = useNavigate();
+  const router = useRouter();
   const [anonId, setAnonId] = useState<string>("");
   const [startSec, setStartSec] = useState<number | undefined>(tParam);
   const [playing, setPlaying] = useState<boolean>(false);
+  const [showControls, setShowControls] = useState(true);
+  const [resumeChecked, setResumeChecked] = useState(false);
+  const [openComments, setOpenComments] = useState(false);
   const sessionRef = useRef<string | null>(null);
   const secondsRef = useRef(0);
   const playerRef = useRef<HTMLDivElement>(null);
+  const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (!isUserAuthed()) {
@@ -50,19 +66,6 @@ function VideoPage() {
     }
     setAnonId(getAnonId());
   }, [navigate, id]);
-
-  const goFullscreen = () => {
-    const container: any = playerRef.current;
-    if (!container) return;
-    // Fullscreen the container (not the iframe) so our crop styling stays applied
-    const fn =
-      container.requestFullscreen ||
-      container.webkitRequestFullscreen ||
-      container.webkitEnterFullscreen;
-    if (fn) {
-      try { fn.call(container); } catch { /* ignore */ }
-    }
-  };
 
   const q = useQuery({
     queryKey: ["video", id],
@@ -81,6 +84,78 @@ function VideoPage() {
     enabled: !!anonId,
   });
   const myKinds = useMemo(() => new Set((my.data ?? []).map((r: any) => r.kind)), [my.data]);
+
+  // Auto-resume: if no ?t= in URL, fetch last watched position and offer to resume
+  useEffect(() => {
+    if (resumeChecked || !anonId || tParam !== undefined) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await getResumePoint({ data: { anon_id: anonId, video_id: id } });
+        if (cancelled) return;
+        const dur = q.data?.video?.duration_sec ?? 0;
+        const notComplete = !r.completed && (dur === 0 || r.seconds < dur * 0.9);
+        if (r.seconds > 30 && notComplete) {
+          setStartSec(r.seconds);
+          toast.success(`تم استئناف المشاهدة من ${fmt(r.seconds)}`, {
+            action: {
+              label: "ابدأ من البداية",
+              onClick: () => setStartSec(0),
+            },
+            duration: 6000,
+          });
+        }
+      } catch {
+        /* ignore */
+      } finally {
+        if (!cancelled) setResumeChecked(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [anonId, id, tParam, q.data?.video?.duration_sec, resumeChecked]);
+
+  // Smart back: browser back if possible, else /
+  const goBack = () => {
+    if (typeof window !== "undefined" && window.history.length > 1) {
+      router.history.back();
+    } else {
+      navigate({ to: "/" });
+    }
+  };
+
+  const goFullscreen = () => {
+    const container: any = playerRef.current;
+    if (!container) return;
+    const fn =
+      container.requestFullscreen ||
+      container.webkitRequestFullscreen ||
+      container.webkitEnterFullscreen;
+    if (fn) {
+      try {
+        fn.call(container);
+      } catch {
+        /* ignore */
+      }
+    }
+  };
+
+  // Auto-hide controls after 3s of inactivity
+  const bumpControls = () => {
+    setShowControls(true);
+    if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+    hideTimerRef.current = setTimeout(() => setShowControls(false), 3000);
+  };
+
+  useEffect(() => {
+    if (!playing) return;
+    bumpControls();
+    return () => {
+      if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [playing]);
 
   // Start a view session + heartbeat every 15s (paused when tab hidden)
   useEffect(() => {
@@ -129,92 +204,141 @@ function VideoPage() {
       <AppNav />
       <main className="container mx-auto px-3 sm:px-4 py-4 sm:py-6">
         <div className="max-w-5xl mx-auto">
-          <div>
-            <div
-              ref={playerRef}
-              className="relative aspect-video w-full overflow-hidden rounded-xl bg-black border border-border lg:max-h-[80vh] no-select"
-            >
-              {playing ? (
-                <>
-                  <iframe
-                    key={startSec ?? "0"}
-                    src={drivePreviewUrl(v.drive_file_id, startSec)}
-                    allow="autoplay; encrypted-media; fullscreen"
-                    allowFullScreen
-                    className="absolute left-0 w-full border-0"
-                    style={{ top: "-80px", height: "calc(100% + 160px)" }}
-                  />
-                  {/* Block Google Drive's bottom control bar (seek/forward/rewind) */}
-                  <div
-                    className="absolute left-0 right-0 bottom-0 h-16 z-[5]"
-                    style={{ pointerEvents: "auto" }}
-                    aria-hidden="true"
-                  />
-                  <button
-                    onClick={goFullscreen}
-                    className="absolute top-2 left-2 z-10 inline-flex items-center gap-1.5 rounded-full bg-black/70 px-3 py-2 text-xs sm:text-sm text-white hover:bg-black/90 backdrop-blur"
-                    aria-label="ملء الشاشة"
-                  >
-                    <Maximize2 className="h-4 w-4" />
-                    <span className="hidden sm:inline">ملء الشاشة</span>
-                  </button>
-                </>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setPlaying(true)}
-                  className="group absolute inset-0 h-full w-full"
-                  aria-label="تشغيل"
+          <button
+            onClick={goBack}
+            className="mb-3 inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5 text-sm hover:bg-accent transition-colors"
+          >
+            <ArrowRight className="h-4 w-4" />
+            رجوع
+          </button>
+
+          <div
+            ref={playerRef}
+            onMouseMove={bumpControls}
+            onTouchStart={bumpControls}
+            onClick={bumpControls}
+            className="relative aspect-video w-full overflow-hidden rounded-xl bg-black border border-border lg:max-h-[80vh] no-select group"
+          >
+            {playing ? (
+              <>
+                <iframe
+                  key={startSec ?? "0"}
+                  src={drivePreviewUrl(v.drive_file_id, startSec)}
+                  allow="autoplay; encrypted-media; fullscreen"
+                  allowFullScreen
+                  className="absolute left-0 w-full border-0"
+                  style={{ top: "-56px", height: "calc(100% + 112px)" }}
+                />
+                {/* Block Google Drive's bottom control bar */}
+                <div
+                  className="absolute left-0 right-0 bottom-0 h-14 z-[5]"
+                  style={{ pointerEvents: "auto" }}
+                  aria-hidden="true"
+                />
+                {/* Overlay controls (auto-hide) */}
+                <div
+                  className={`pointer-events-none absolute inset-0 z-10 transition-opacity duration-300 ${
+                    showControls ? "opacity-100" : "opacity-0"
+                  }`}
                 >
-                  {v.thumbnail_url ? (
-                    <img
-                      src={v.thumbnail_url}
-                      alt={v.title}
-                      className="h-full w-full object-cover opacity-80 group-hover:opacity-100 transition-opacity"
-                      referrerPolicy="no-referrer"
-                    />
-                  ) : null}
-                  <span className="absolute inset-0 flex items-center justify-center bg-black/30">
-                    <span className="inline-flex h-16 w-16 sm:h-20 sm:w-20 items-center justify-center rounded-full bg-primary/90 text-primary-foreground shadow-lg">
-                      <Play className="h-8 w-8 mr-0.5" />
+                  {/* Top bar */}
+                  <div className="pointer-events-auto absolute top-0 inset-x-0 flex items-center justify-between gap-2 p-2 sm:p-3 bg-gradient-to-b from-black/70 to-transparent">
+                    <button
+                      onClick={goBack}
+                      className="inline-flex items-center justify-center h-9 w-9 rounded-full bg-black/60 text-white hover:bg-black/80 backdrop-blur"
+                      aria-label="رجوع"
+                    >
+                      <ArrowRight className="h-4 w-4" />
+                    </button>
+                    <span className="flex-1 text-center text-xs sm:text-sm text-white/90 line-clamp-1 px-2">
+                      {v.title}
                     </span>
+                    <button
+                      onClick={goFullscreen}
+                      className="inline-flex items-center justify-center h-9 w-9 rounded-full bg-black/60 text-white hover:bg-black/80 backdrop-blur"
+                      aria-label="ملء الشاشة"
+                    >
+                      <Maximize2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setPlaying(true)}
+                className="group absolute inset-0 h-full w-full"
+                aria-label="تشغيل"
+              >
+                {v.thumbnail_url ? (
+                  <img
+                    src={v.thumbnail_url}
+                    alt={v.title}
+                    className="h-full w-full object-cover opacity-80 group-hover:opacity-100 transition-opacity"
+                    referrerPolicy="no-referrer"
+                  />
+                ) : null}
+                <span className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
+                <span className="absolute inset-0 flex items-center justify-center">
+                  <span className="inline-flex h-16 w-16 sm:h-20 sm:w-20 items-center justify-center rounded-full bg-primary/95 text-primary-foreground shadow-2xl group-hover:scale-110 transition-transform">
+                    <Play className="h-8 w-8 mr-0.5" />
                   </span>
-                </button>
-              )}
-            </div>
-            <h1 className="mt-4 text-xl sm:text-2xl font-bold">{v.title}</h1>
-            {v.description && (
-              <p className="mt-2 text-sm text-muted-foreground whitespace-pre-line">
-                {v.description}
-              </p>
+                </span>
+                <span className="absolute bottom-3 inset-x-3 text-right text-white font-bold text-sm sm:text-lg drop-shadow">
+                  {v.title}
+                </span>
+              </button>
             )}
-
-            <div className="mt-4 flex flex-wrap gap-2">
-              <ReactBtn
-                active={myKinds.has("like")}
-                onClick={() => react("like")}
-                icon={<ThumbsUp className="h-4 w-4" />}
-                label={`إعجاب ${stats.data?.likes ?? 0}`}
-              />
-              <ReactBtn
-                active={myKinds.has("dislike")}
-                onClick={() => react("dislike")}
-                icon={<ThumbsDown className="h-4 w-4" />}
-                label={`${stats.data?.dislikes ?? 0}`}
-              />
-              <ReactBtn
-                active={myKinds.has("save")}
-                onClick={() => react("save")}
-                icon={<Bookmark className="h-4 w-4" />}
-                label="حفظ"
-              />
-              <div className="rounded-full border border-border px-3 py-1.5 text-xs text-muted-foreground">
-                مشاهدات: {stats.data?.views ?? 0} • مشاهدون فريدون: {stats.data?.unique_viewers ?? 0}
-              </div>
-            </div>
-
-            <CommentsBlock videoId={id} anonId={anonId} initial={q.data.comments} />
           </div>
+
+          <h1 className="mt-4 text-xl sm:text-2xl font-bold">{v.title}</h1>
+          {v.description && (
+            <p className="mt-2 text-sm text-muted-foreground whitespace-pre-line leading-relaxed">
+              {v.description}
+            </p>
+          )}
+
+          <div className="mt-4 flex flex-wrap gap-2">
+            <ReactBtn
+              active={myKinds.has("like")}
+              onClick={() => react("like")}
+              icon={<ThumbsUp className="h-4 w-4" />}
+              label={`${stats.data?.likes ?? 0}`}
+            />
+            <ReactBtn
+              active={myKinds.has("dislike")}
+              onClick={() => react("dislike")}
+              icon={<ThumbsDown className="h-4 w-4" />}
+              label={`${stats.data?.dislikes ?? 0}`}
+            />
+            <ReactBtn
+              active={myKinds.has("save")}
+              onClick={() => react("save")}
+              icon={<Bookmark className="h-4 w-4" />}
+              label="حفظ"
+            />
+            <div className="rounded-full border border-border px-3 py-1.5 text-xs text-muted-foreground">
+              {stats.data?.views ?? 0} مشاهدة
+            </div>
+          </div>
+
+          {/* Collapsible comments */}
+          <section className="mt-6 rounded-xl border border-border bg-card/60">
+            <button
+              onClick={() => setOpenComments((v) => !v)}
+              className="w-full flex items-center justify-between px-4 py-3 text-sm font-semibold hover:bg-accent/40 rounded-xl transition-colors"
+            >
+              <span>التعليقات والتقييمات ({q.data.comments.length})</span>
+              <ChevronDown
+                className={`h-4 w-4 transition-transform ${openComments ? "rotate-180" : ""}`}
+              />
+            </button>
+            {openComments && (
+              <div className="border-t border-border p-3 sm:p-4">
+                <CommentsBlock videoId={id} anonId={anonId} initial={q.data.comments} />
+              </div>
+            )}
+          </section>
         </div>
       </main>
     </div>
@@ -235,7 +359,7 @@ function ReactBtn({
   return (
     <button
       onClick={onClick}
-      className={`inline-flex items-center gap-2 rounded-full border px-4 py-1.5 text-sm ${
+      className={`inline-flex items-center gap-2 rounded-full border px-4 py-1.5 text-sm transition-colors ${
         active ? "border-primary bg-primary/15 text-primary" : "border-border hover:bg-accent"
       }`}
     >
@@ -284,8 +408,7 @@ function CommentsBlock({
   };
 
   return (
-    <section className="mt-8">
-      <h2 className="text-lg font-bold mb-3">التعليقات والتقييمات</h2>
+    <>
       <div className="rounded-xl border border-border bg-card p-4 mb-4">
         <div className="flex items-center gap-1 mb-2">
           {[1, 2, 3, 4, 5].map((n) => (
@@ -339,6 +462,6 @@ function CommentsBlock({
           </li>
         ))}
       </ul>
-    </section>
+    </>
   );
 }
