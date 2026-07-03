@@ -353,6 +353,71 @@ export const heartbeatViewSession = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+// ---------- Resume point ----------
+export const getResumePoint = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) =>
+    z.object({ anon_id: z.string().uuid(), video_id: z.string().uuid() }).parse(d),
+  )
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: rows } = await supabaseAdmin
+      .from("view_sessions")
+      .select("seconds_watched, completed, updated_at")
+      .eq("anon_id", data.anon_id)
+      .eq("video_id", data.video_id)
+      .order("updated_at", { ascending: false })
+      .limit(1);
+    const row = rows?.[0];
+    if (!row) return { seconds: 0, completed: false };
+    return { seconds: row.seconds_watched ?? 0, completed: !!row.completed };
+  });
+
+// ---------- Admin: AI description generation ----------
+export const generateVideoDescription = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ video_id: z.string().uuid() }).parse(d))
+  .handler(async ({ data }) => {
+    const key = process.env.LOVABLE_API_KEY;
+    if (!key) throw new Error("LOVABLE_API_KEY غير مهيّأ");
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: video } = await supabaseAdmin
+      .from("videos")
+      .select("id, title")
+      .eq("id", data.video_id)
+      .maybeSingle();
+    if (!video) throw new Error("الفيديو غير موجود");
+
+    const res = await fetch(AI_GATEWAY, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+      body: JSON.stringify({
+        model: "google/gemini-3-flash-preview",
+        messages: [
+          {
+            role: "system",
+            content:
+              "أنت كاتب أوصاف أفلام باللغة العربية الفصحى. اكتب وصفاً جذاباً من سطرين إلى ثلاثة أسطر فقط بناءً على عنوان الفيلم. لا مقدمات ولا عناوين، فقط الوصف مباشرة بدون علامات اقتباس.",
+          },
+          { role: "user", content: `عنوان الفيلم: ${video.title}` },
+        ],
+      }),
+    });
+    if (res.status === 429) throw new Error("الكثير من الطلبات، حاول لاحقاً");
+    if (res.status === 402) throw new Error("نفد رصيد الذكاء الاصطناعي");
+    if (!res.ok) {
+      const t = await res.text();
+      throw new Error(`فشل التوليد: ${t.slice(0, 150)}`);
+    }
+    const json = (await res.json()) as any;
+    const description: string =
+      json.choices?.[0]?.message?.content?.trim().replace(/^["'«»\s]+|["'«»\s]+$/g, "") || "";
+    if (!description) throw new Error("لم يتم توليد وصف");
+    await supabaseAdmin
+      .from("videos")
+      .update({ description, updated_at: new Date().toISOString() })
+      .eq("id", data.video_id);
+    return { description };
+  });
+
 // ---------- Admin: settings + sync ----------
 export const getAdminSettings = createServerFn({ method: "GET" }).handler(async () => {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
