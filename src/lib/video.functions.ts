@@ -692,7 +692,7 @@ function mariaAgeYears(): number {
   return Math.floor(diff / (1000 * 60 * 60 * 24 * 365.25));
 }
 
-const MARIA_SYSTEM = () => `أنتِ "ماريا"، مساعد سينمائي رقمي يتحدث بلهجة عراقية بغدادية خفيفة وواضحة. أنتِ ذكية وودودة وصريحة، وتساعدين المستخدم على اكتشاف الأفلام واللقطات وشرح الأوصاف. استخدمي كلمات عراقية يومية باعتدال مثل: "شلونك"، "هلا"، "شكو ماكو"، "زين"، "اكو/ماكو". كوني شفافة: لا تدّعي أنكِ إنسانة أو أنكِ شاهدتِ فيديو لم تُزوّدي بمعلومات عنه. ردودك قصيرة وحيوية ومباشرة. يمكنك مناقشة الرومانسية والموضوعات الناضجة بعبارات عامة ومحترمة، لكن لا تقدمي محتوى جنسي صريحاً أو وصفاً إباحياً أو أي محتوى يتضمن قاصرين أو استغلالاً.`;
+const MARIA_SYSTEM = () => `أنتِ "ماريا"، مساعد سينمائي رقمي داخل موقع ماريا. مهمتك الوحيدة مساعدة المستخدم في اكتشاف الأفلام واللقطات الموجودة في كتالوج الموقع وشرح بياناتها. لا تجيبي عن أفلام أو معلومات غير موجودة في الكتالوج، وإذا لم تجدي المعلومة قولي: "ما عندي معلومة عنها بكتالوج ماريا". لا تخترعي أحداثاً أو ممثلين أو مشاهد، ولا تدّعي أنكِ شاهدتِ فيديو لم تُزوّدي ببياناته. تحدثي بلهجة عراقية بغدادية خفيفة وواضحة وباختصار. يمكنك مناقشة الرومانسية والموضوعات الناضجة بجرأة أدبية عامة ومحترمة، لكن لا تقدمي وصفاً جنسياً صريحاً أو إباحياً أو محتوى يتضمن قاصرين أو استغلالاً.`;
 
 export const chatWithMaria = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) =>
@@ -707,6 +707,28 @@ export const chatWithMaria = createServerFn({ method: "POST" })
     const key = process.env.LOVABLE_API_KEY;
     if (!key) throw new Error("AI غير مهيّأ");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    const [{ data: catalog }, { data: clips }] = await Promise.all([
+      supabaseAdmin
+        .from("videos")
+        .select("id, title, description, duration_sec")
+        .order("created_at", { ascending: false })
+        .limit(200),
+      supabaseAdmin
+        .from("clips")
+        .select("video_id, title, description, start_sec, tags")
+        .limit(500),
+    ]);
+    const catalogContext = (catalog ?? [])
+      .map((video: any) => {
+        const related = (clips ?? [])
+          .filter((clip: any) => clip.video_id === video.id)
+          .slice(0, 8)
+          .map((clip: any) => `${clip.title} (${clip.start_sec}s): ${clip.description ?? "بدون شرح"}`)
+          .join(" | ");
+        return `فيلم: ${video.title}\nالوصف: ${video.description ?? "بدون وصف"}\nالمدة: ${video.duration_sec ?? "غير معروفة"} ثانية\nاللقطات: ${related || "لا توجد لقطات مفهرسة"}`;
+      })
+      .join("\n---\n");
 
     // Check blocked
     const blocked = await supabaseAdmin
@@ -733,7 +755,10 @@ export const chatWithMaria = createServerFn({ method: "POST" })
     });
 
     const messages = [
-      { role: "system", content: MARIA_SYSTEM() },
+      {
+        role: "system",
+        content: `${MARIA_SYSTEM()}\n\nكتالوج ماريا الحالي — المصدر الوحيد للإجابة:\n${catalogContext || "الكتالوج فارغ حالياً."}`,
+      },
       ...ctx.map((m: any) => ({ role: m.role, content: m.content })),
       { role: "user", content: data.message },
     ];
