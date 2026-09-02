@@ -350,6 +350,74 @@ function VideoPage() {
   );
 }
 
+function ClipsSection({ clips, videoId }: { clips: any[]; videoId: string }) {
+  const navigate = useNavigate();
+  if (!clips?.length) return null;
+  return (
+    <section className="mt-6 rounded-2xl border border-border bg-card/60 p-4">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <div>
+          <h2 className="text-base font-bold">لقطات الفيلم</h2>
+          <p className="mt-1 text-xs text-muted-foreground">
+            مقاطع مرتبة مع شرح عربي مختصر — اضغط للانتقال مباشرة
+          </p>
+        </div>
+        <span className="rounded-full bg-primary/10 px-3 py-1 text-xs text-primary">
+          {clips.length} لقطات
+        </span>
+      </div>
+      <div className="grid gap-2 sm:grid-cols-2">
+        {clips.map((clip: any, index: number) => (
+          <button
+            key={clip.id}
+            onClick={() =>
+              navigate({
+                to: "/videos/$id",
+                params: { id: videoId },
+                search: { t: clip.start_sec } as any,
+              })
+            }
+            className="group rounded-xl border border-border bg-background/70 p-3 text-right transition-all hover:border-primary/60 hover:bg-accent/40"
+          >
+            <div className="flex items-start gap-3">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-sm font-bold text-primary">
+                {String(index + 1).padStart(2, "0")}
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="flex items-center justify-between gap-2">
+                  <span className="line-clamp-1 text-sm font-semibold group-hover:text-primary">
+                    {clip.title || `لقطة ${index + 1}`}
+                  </span>
+                  <span className="inline-flex shrink-0 items-center gap-1 text-[11px] text-muted-foreground">
+                    <Clock3 className="h-3 w-3" />
+                    {fmt(clip.start_sec || 0)}
+                  </span>
+                </span>
+                <span className="mt-1 block line-clamp-2 text-xs leading-5 text-muted-foreground">
+                  {clip.description || "لقطة مختارة من الفيلم."}
+                </span>
+                {Array.isArray(clip.tags) && clip.tags.length > 0 && (
+                  <span className="mt-2 flex flex-wrap gap-1">
+                    {clip.tags.slice(0, 3).map((tag: string) => (
+                      <span
+                        key={tag}
+                        className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[10px] text-muted-foreground"
+                      >
+                        <Tag className="h-2.5 w-2.5" />
+                        {tag}
+                      </span>
+                    ))}
+                  </span>
+                )}
+              </span>
+            </div>
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function ReactBtn({
   icon,
   label,
