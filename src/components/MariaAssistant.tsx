@@ -57,7 +57,7 @@ export function MariaAssistant() {
           <header className="flex items-center justify-between border-b border-border bg-gradient-to-l from-primary/20 to-transparent px-4 py-3">
             <div className="flex items-center gap-2">
               <span className="inline-flex h-9 w-9 items-center justify-center rounded-2xl bg-primary text-primary-foreground"><Sparkles className="h-4 w-4" /></span>
-              <div><p className="font-bold">مساعد ماريا</p><p className="text-[11px] text-muted-foreground">اقتراحات أفلام ولقطات، بلا تعقيد</p></div>
+              <div><p className="font-bold">مساعد ماريا</p><p className="text-[11px] text-muted-foreground">من كتالوج ماريا ولقطاته فقط</p></div>
             </div>
             <div className="flex items-center gap-1"><button onClick={clear} className="rounded-full p-2 text-muted-foreground hover:bg-accent" title="مسح المحادثة"><Trash2 className="h-4 w-4" /></button><button onClick={() => setOpen(false)} className="rounded-full p-2 text-muted-foreground hover:bg-accent" title="إغلاق"><X className="h-4 w-4" /></button></div>
           </header>
