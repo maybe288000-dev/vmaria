@@ -7,6 +7,7 @@ import {
 } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import { Toaster } from "@/components/ui/sonner";
+import { MariaAssistant } from "@/components/MariaAssistant";
 
 import appCss from "../styles.css?url";
 
@@ -80,6 +81,7 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <Outlet />
+      <MariaAssistant />
       <Toaster richColors position="top-center" />
     </QueryClientProvider>
   );
