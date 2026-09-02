@@ -190,6 +190,7 @@ function AdminVideos() {
                 <Link
                   to="/videos/$id"
                   params={{ id: v.id }}
+                  search={{ t: undefined }}
                   className="font-medium line-clamp-1 hover:text-primary"
                 >
                   {v.title}
