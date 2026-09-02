@@ -36,6 +36,7 @@ function Saved() {
                 key={v.id}
                 to="/videos/$id"
                 params={{ id: v.id }}
+                search={{ t: undefined }}
                 className="group rounded-xl overflow-hidden bg-card border border-border"
               >
                 <div className="relative aspect-video bg-muted">

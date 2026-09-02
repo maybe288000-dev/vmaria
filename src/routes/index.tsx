@@ -53,7 +53,7 @@ function HomePage() {
       navigate({ to: "/login", search: { redirect: `/videos/${id}` } });
       return;
     }
-    navigate({ to: "/videos/$id", params: { id } });
+    navigate({ to: "/videos/$id", params: { id }, search: { t: undefined } });
   };
 
   return (
