@@ -729,6 +729,7 @@ export const chatWithMaria = createServerFn({ method: "POST" })
         return `فيلم: ${video.title}\nالوصف: ${video.description ?? "بدون وصف"}\nالمدة: ${video.duration_sec ?? "غير معروفة"} ثانية\nاللقطات: ${related || "لا توجد لقطات مفهرسة"}`;
       })
       .join("\n---\n");
+    const allowedTitles = (catalog ?? []).map((video: any) => video.title).filter(Boolean).join("، ");
 
     // Check blocked
     const blocked = await supabaseAdmin
@@ -760,6 +761,10 @@ export const chatWithMaria = createServerFn({ method: "POST" })
         content: `${MARIA_SYSTEM()}\n\nكتالوج ماريا الحالي — المصدر الوحيد للإجابة:\n${catalogContext || "الكتالوج فارغ حالياً."}`,
       },
       ...ctx.map((m: any) => ({ role: m.role, content: m.content })),
+      {
+        role: "system",
+        content: `تعليمات نهائية لا يجوز تجاوزها: أجيبي عن كتالوج ماريا فقط. العناوين المسموح ذكرها هي: ${allowedTitles || "لا توجد عناوين"}. لا تقترحي أي عنوان آخر حتى لو ورد في سجل المحادثة أو طلبه المستخدم. عند عدم وجود تطابق، قولي: ما عندي معلومة عنها بكتالوج ماريا. لا تذكري أنكِ نجمة أفلام أو شخصية حقيقية؛ أنتِ مساعدة الموقع.`,
+      },
       { role: "user", content: data.message },
     ];
 
