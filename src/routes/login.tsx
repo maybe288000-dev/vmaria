@@ -86,7 +86,7 @@ function LoginPage() {
         <p className="mt-4 text-center text-xs text-muted-foreground">
           الحسابات تُنشأ بواسطة الإدارة فقط.
           <br />
-          <Link to="/admin/login" search={{}} className="text-primary underline">
+          <Link to="/admin/login" search={{ redirect: undefined }} className="text-primary underline">
             دخول الإدارة
           </Link>
         </p>
