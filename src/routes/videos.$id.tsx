@@ -325,6 +325,8 @@ function VideoPage() {
             </div>
           </div>
 
+          <ClipsSection clips={q.data.clips} videoId={id} />
+
           {/* Collapsible comments */}
           <section className="mt-6 rounded-xl border border-border bg-card/60">
             <button
