@@ -223,9 +223,10 @@ function VideoPage() {
               <>
                 <iframe
                   key={startSec ?? "0"}
-                  src={drivePreviewUrl(v.drive_file_id, startSec)}
+                  src={drivePreviewUrl(v.drive_file_id, startSec, { mute: true })}
                   allow="autoplay; encrypted-media; fullscreen"
                   allowFullScreen
+                  title={`مشغل Google Drive — ${v.title}`}
                   className="absolute left-0 w-full border-0"
                   style={{ top: "-56px", height: "calc(100% + 112px)" }}
                 />
