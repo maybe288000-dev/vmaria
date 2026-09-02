@@ -25,6 +25,8 @@ import {
   Maximize2,
   ArrowRight,
   ChevronDown,
+  Clock3,
+  Tag,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useNavigate, useRouter } from "@tanstack/react-router";
