@@ -11,6 +11,7 @@ const starters = ["رشّح لي فيلمًا الليلة", "أريد فيلم�
 export function MariaAssistant() {
   const [open, setOpen] = useState(false);
   const [anonId, setAnonId] = useState("");
+  const [currentVideoId, setCurrentVideoId] = useState<string | undefined>();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
@@ -22,6 +23,11 @@ export function MariaAssistant() {
     getChatHistory({ data: { anon_id: id } })
       .then((rows: any[]) => setMessages(rows.filter((m) => m.role !== "system")))
       .catch(() => undefined);
+    const onMovieChange = (event: Event) => {
+      setCurrentVideoId((event as CustomEvent<string | undefined>).detail);
+    };
+    window.addEventListener("maria-current-movie", onMovieChange);
+    return () => window.removeEventListener("maria-current-movie", onMovieChange);
   }, []);
 
   useEffect(() => {
@@ -35,7 +41,7 @@ export function MariaAssistant() {
     setMessages((current) => [...current, { role: "user", content: message }]);
     setBusy(true);
     try {
-      const result = await chatWithMaria({ data: { anon_id: anonId, message } });
+      const result = await chatWithMaria({ data: { anon_id: anonId, message, video_id: currentVideoId } });
       setMessages((current) => [...current, { role: "assistant", content: result.reply }]);
     } catch (error: any) {
       toast.error(error?.message || "تعذّر الاتصال بالمساعد");

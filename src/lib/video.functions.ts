@@ -700,6 +700,7 @@ export const chatWithMaria = createServerFn({ method: "POST" })
       .object({
         anon_id: z.string().uuid(),
         message: z.string().min(1).max(2000),
+        video_id: z.string().uuid().optional(),
       })
       .parse(d),
   )
@@ -708,17 +709,20 @@ export const chatWithMaria = createServerFn({ method: "POST" })
     if (!key) throw new Error("AI غير مهيّأ");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
-    const [{ data: catalog }, { data: clips }] = await Promise.all([
-      supabaseAdmin
-        .from("videos")
-        .select("id, title, description, duration_sec")
-        .order("created_at", { ascending: false })
-        .limit(200),
-      supabaseAdmin
-        .from("clips")
-        .select("video_id, title, description, start_sec, tags")
-        .limit(500),
-    ]);
+    const videosQuery = supabaseAdmin
+      .from("videos")
+      .select("id, title, description, duration_sec")
+      .order("created_at", { ascending: false })
+      .limit(200);
+    const clipsQuery = supabaseAdmin
+      .from("clips")
+      .select("video_id, title, description, start_sec, tags")
+      .limit(500);
+    if (data.video_id) {
+      videosQuery.eq("id", data.video_id);
+      clipsQuery.eq("video_id", data.video_id);
+    }
+    const [{ data: catalog }, { data: clips }] = await Promise.all([videosQuery, clipsQuery]);
     const catalogContext = (catalog ?? [])
       .map((video: any) => {
         const related = (clips ?? [])
@@ -730,6 +734,9 @@ export const chatWithMaria = createServerFn({ method: "POST" })
       })
       .join("\n---\n");
     const allowedTitles = (catalog ?? []).map((video: any) => video.title).filter(Boolean).join("، ");
+    const currentMovieInstruction = data.video_id
+      ? "المستخدم موجود داخل صفحة فيلم محدد؛ اجعلي إجابتك عن هذا الفيلم ولقطاته فقط. لا تنتقلي إلى فيلم آخر."
+      : "لا يوجد فيلم مفتوح؛ استخدمي فقط العناوين الواردة في الكتالوج الكامل.";
 
     // Check blocked
     const blocked = await supabaseAdmin
@@ -758,7 +765,7 @@ export const chatWithMaria = createServerFn({ method: "POST" })
     const messages = [
       {
         role: "system",
-        content: `${MARIA_SYSTEM()}\n\nكتالوج ماريا الحالي — المصدر الوحيد للإجابة:\n${catalogContext || "الكتالوج فارغ حالياً."}`,
+        content: `${MARIA_SYSTEM()}\n${currentMovieInstruction}\n\nكتالوج ماريا الحالي — المصدر الوحيد للإجابة:\n${catalogContext || "الكتالوج فارغ حالياً."}`,
       },
       ...ctx.map((m: any) => ({ role: m.role, content: m.content })),
       {

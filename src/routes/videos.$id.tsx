@@ -74,6 +74,11 @@ function VideoPage() {
     setPlaying(false);
   }, [id, tParam]);
 
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent("maria-current-movie", { detail: id }));
+    return () => window.dispatchEvent(new CustomEvent("maria-current-movie", { detail: undefined }));
+  }, [id]);
+
   const q = useQuery({
     queryKey: ["video", id],
     queryFn: () => getVideo({ data: { id } }),
