@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { getTrailers } from "@/lib/video.functions";
 import { drivePreviewUrl, driveThumbnailUrl } from "@/lib/drive";
-import { Play, ChevronRight, ChevronLeft } from "lucide-react";
+import { Play, ChevronRight, ChevronLeft, Volume2, VolumeX } from "lucide-react";
 
 export function TrailersHero({ onOpen }: { onOpen: (id: string) => void }) {
   const { data } = useQuery({
@@ -13,6 +13,7 @@ export function TrailersHero({ onOpen }: { onOpen: (id: string) => void }) {
   const [idx, setIdx] = useState(0);
   const [showIframe, setShowIframe] = useState(false);
   const [randomStart, setRandomStart] = useState<number>(0);
+  const [muted, setMuted] = useState(true);
   const touchX = useRef<number | null>(null);
 
   // Auto-advance carousel every 30s
@@ -96,7 +97,7 @@ export function TrailersHero({ onOpen }: { onOpen: (id: string) => void }) {
       {showIframe && (
         <iframe
           key={`${v.id}-${randomStart}`}
-          src={drivePreviewUrl(v.drive_file_id, randomStart, { autoplay: true, mute: true })}
+          src={drivePreviewUrl(v.drive_file_id, randomStart, { autoplay: true, mute: muted })}
           allow="autoplay; encrypted-media"
           className="absolute left-0 w-full pointer-events-none border-0"
           style={{ top: "-80px", height: "calc(100% + 160px)" }}
@@ -105,6 +106,18 @@ export function TrailersHero({ onOpen }: { onOpen: (id: string) => void }) {
       )}
 
       <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/40 to-transparent" />
+
+      {showIframe && (
+        <button
+          type="button"
+          onClick={() => setMuted((value) => !value)}
+          className="absolute left-3 top-3 z-10 inline-flex items-center gap-2 rounded-full bg-black/65 px-3 py-2 text-xs text-white backdrop-blur hover:bg-black/80"
+          aria-label={muted ? "إلغاء كتم الصوت" : "كتم الصوت"}
+        >
+          {muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+          {muted ? "الصوت مكتوم" : "الصوت يعمل"}
+        </button>
+      )}
 
       {data.length > 1 && (
         <>

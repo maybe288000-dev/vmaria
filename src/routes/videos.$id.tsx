@@ -69,6 +69,11 @@ function VideoPage() {
     setAnonId(getAnonId());
   }, [navigate, id]);
 
+  useEffect(() => {
+    setStartSec(tParam);
+    setPlaying(false);
+  }, [id, tParam]);
+
   const q = useQuery({
     queryKey: ["video", id],
     queryFn: () => getVideo({ data: { id } }),
@@ -225,7 +230,7 @@ function VideoPage() {
               <>
                 <iframe
                   key={startSec ?? "0"}
-                  src={drivePreviewUrl(v.drive_file_id, startSec)}
+                  src={drivePreviewUrl(v.drive_file_id, startSec, { mute: true })}
                   allow="autoplay; encrypted-media; fullscreen"
                   allowFullScreen
                   title={`مشغل Google Drive — ${v.title}`}
