@@ -784,6 +784,31 @@ export const chatWithMaria = createServerFn({ method: "POST" })
       .join("\n---\n");
     const allowedTitles = (catalog ?? []).map((video: any) => video.title).filter(Boolean).join("، ");
 
+    // Context of the film currently playing for the user
+    let nowPlayingContext = "";
+    if (data.video_id) {
+      const now = (catalog ?? []).find((video: any) => video.id === data.video_id);
+      if (now) {
+        const t = data.t ?? 0;
+        const nearby = (clips ?? [])
+          .filter((clip: any) => clip.video_id === data.video_id)
+          .sort(
+            (a: any, b: any) =>
+              Math.abs((a.start_sec ?? 0) - t) - Math.abs((b.start_sec ?? 0) - t),
+          )
+          .slice(0, 4)
+          .map(
+            (clip: any) =>
+              `${clip.title} (${clip.start_sec}s): ${clip.description ?? "بدون شرح"}`,
+          )
+          .join(" | ");
+        const mm = Math.floor(t / 60);
+        const ss = t % 60;
+        nowPlayingContext = `الفيلم الذي يعمل الآن مع المستخدم: ${now.title}\nالوصف: ${now.description ?? "بدون وصف"}\nالوقت الحالي: ${mm}:${String(ss).padStart(2, "0")}\nأقرب اللقطات للوقت الحالي: ${nearby || "لا توجد لقطات مفهرسة"}\nعلّقي على هذا الفيلم والمشهد القريب من وقته الحالي كأنكِ تشاهدينه معه.`;
+      }
+    }
+
+
     // Check blocked
     const blocked = await supabaseAdmin
       .from("blocked_users")
