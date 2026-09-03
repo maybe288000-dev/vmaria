@@ -1,0 +1,21 @@
+services:
+  web:
+    image: oven/bun:1.2
+    working_dir: /app
+    volumes:
+      - .:/app
+    ports:
+      - "3000:3000"
+    env_file:
+      - ./.env
+      - /run/base44/app.env
+    environment:
+      - BASE44_PUBLIC_HOST_SUFFIX=${BASE44_PUBLIC_HOST_SUFFIX}
+      - NODE_ENV=development
+    command: sh -c "bun install && bun run dev -- --port 3000 --host 0.0.0.0"
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:3000/"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s

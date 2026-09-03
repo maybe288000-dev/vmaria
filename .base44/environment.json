@@ -1,0 +1,27 @@
+{
+  "previewPort": 3000,
+  "healthPath": "/",
+  "startCommand": "docker compose -f docker-compose.base44.yml up -d",
+  "secrets": [
+    {
+      "name": "SUPABASE_SERVICE_ROLE_KEY",
+      "description": "Supabase service role key (bypasses RLS) for server-side DB access. Found in Supabase Dashboard > Project Settings > API > service_role key. Required for the homepage and all data to load.",
+      "requiredAtBoot": false
+    },
+    {
+      "name": "LOVABLE_API_KEY",
+      "description": "Lovable platform API key used for the Lovable AI gateway and Google Drive connector. Needed for AI description/clip generation, Drive sync, and Maria chat (fallback).",
+      "requiredAtBoot": false
+    },
+    {
+      "name": "GOOGLE_DRIVE_API_KEY",
+      "description": "Google Drive API key for the Lovable connector gateway. Needed for the admin Drive folder sync feature.",
+      "requiredAtBoot": false
+    },
+    {
+      "name": "OPENROUTER_API_KEY",
+      "description": "OpenRouter API key (optional). When set, Maria chat uses OpenRouter (gpt-4o-mini) instead of the Lovable AI gateway.",
+      "requiredAtBoot": false
+    }
+  ]
+}
