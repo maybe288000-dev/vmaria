@@ -702,6 +702,7 @@ export const chatWithMaria = createServerFn({ method: "POST" })
         anon_id: z.string().uuid(),
         message: z.string().min(1).max(2000),
         video_id: z.string().uuid().optional(),
+        t: z.number().int().min(0).optional(),
       })
       .parse(d),
   )
@@ -738,6 +739,22 @@ export const chatWithMaria = createServerFn({ method: "POST" })
       })
       .join("\n---\n");
     const allowedTitles = (catalog ?? []).map((video: any) => video.title).filter(Boolean).join("، ");
+    let nowPlayingContext = "";
+    if (data.video_id) {
+      const now = (catalog ?? []).find((video: any) => video.id === data.video_id);
+      if (now) {
+        const t = data.t ?? 0;
+        const nearby = (clips ?? [])
+          .filter((clip: any) => clip.video_id === data.video_id)
+          .sort((a: any, b: any) => Math.abs((a.start_sec ?? 0) - t) - Math.abs((b.start_sec ?? 0) - t))
+          .slice(0, 4)
+          .map((clip: any) => `${clip.title} (${clip.start_sec}s): ${clip.description ?? "بدون شرح"}`)
+          .join(" | ");
+        const mm = Math.floor(t / 60);
+        const ss = t % 60;
+        nowPlayingContext = `الفيلم المفتوح مع المستخدم: ${now.title}\nالوصف: ${now.description ?? "بدون وصف"}\nالوقت المختار: ${mm}:${String(ss).padStart(2, "0")}\nأقرب اللقطات المفهرسة: ${nearby || "لا توجد لقطات مفهرسة"}`;
+      }
+    }
     const currentMovieInstruction = data.video_id
       ? "المستخدم موجود داخل صفحة فيلم محدد؛ اجعلي إجابتك عن هذا الفيلم ولقطاته فقط. لا تنتقلي إلى فيلم آخر."
       : "لا يوجد فيلم مفتوح؛ استخدمي فقط العناوين الواردة في الكتالوج الكامل.";
@@ -769,7 +786,7 @@ export const chatWithMaria = createServerFn({ method: "POST" })
     const messages = [
       {
         role: "system",
-        content: `${MARIA_SYSTEM()}\n${currentMovieInstruction}\n\nكتالوج ماريا الحالي — المصدر الوحيد للإجابة:\n${catalogContext || "الكتالوج فارغ حالياً."}`,
+        content: `${MARIA_SYSTEM()}\n${currentMovieInstruction}\n${nowPlayingContext}\n\nكتالوج ماريا الحالي — المصدر الوحيد للإجابة:\n${catalogContext || "الكتالوج فارغ حالياً."}`,
       },
       ...ctx.map((m: any) => ({ role: m.role, content: m.content })),
       {
