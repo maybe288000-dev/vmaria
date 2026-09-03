@@ -27,6 +27,8 @@ import {
   ChevronDown,
   Clock3,
   Tag,
+  ShieldAlert,
+  UserRound,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useNavigate, useRouter } from "@tanstack/react-router";
@@ -309,6 +311,16 @@ function VideoPage() {
             <p className="mt-2 text-sm text-muted-foreground whitespace-pre-line leading-relaxed">
               {v.description}
             </p>
+          )}
+
+          {(v.content_rating || v.content_warnings?.length || v.cast_members?.length) && (
+            <section className="mt-4 rounded-2xl border border-border bg-card/60 p-4">
+              <div className="flex flex-wrap items-center gap-2">
+                {v.content_rating && <span className="rounded-full bg-primary/15 px-3 py-1 text-xs font-bold text-primary">{v.content_rating}</span>}
+                {(v.content_warnings ?? []).map((warning: string) => <span key={warning} className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-3 py-1 text-xs text-amber-300"><ShieldAlert className="h-3 w-3" />{warning}</span>)}
+              </div>
+              {Array.isArray(v.cast_members) && v.cast_members.length > 0 && <div className="mt-3 flex flex-wrap gap-2"><span className="inline-flex items-center gap-1 text-xs text-muted-foreground"><UserRound className="h-3.5 w-3.5" />الممثلون:</span>{v.cast_members.map((person: any) => <span key={`${person.name}-${person.role ?? ""}`} className="rounded-full border border-border px-2.5 py-1 text-xs">{person.name}{person.role ? ` — ${person.role}` : ""}</span>)}</div>}
+            </section>
           )}
 
           <div className="mt-4 flex flex-wrap gap-2">

@@ -716,7 +716,7 @@ export const chatWithMaria = createServerFn({ method: "POST" })
 
     const videosQuery = supabaseAdmin
       .from("videos")
-      .select("id, title, description, duration_sec")
+      .select("id, title, description, duration_sec, cast_members, content_rating, content_warnings")
       .order("created_at", { ascending: false })
       .limit(200);
     const clipsQuery = supabaseAdmin
@@ -735,7 +735,10 @@ export const chatWithMaria = createServerFn({ method: "POST" })
           .slice(0, 8)
           .map((clip: any) => `${clip.title} (${clip.start_sec}s): ${clip.description ?? "بدون شرح"}`)
           .join(" | ");
-        return `فيلم: ${video.title}\nالوصف: ${video.description ?? "بدون وصف"}\nالمدة: ${video.duration_sec ?? "غير معروفة"} ثانية\nاللقطات: ${related || "لا توجد لقطات مفهرسة"}`;
+        const cast = Array.isArray(video.cast_members)
+          ? video.cast_members.map((person: any) => `${person.name}${person.role ? ` بدور ${person.role}` : ""}`).join("، ")
+          : "لا توجد أسماء موثقة";
+        return `فيلم: ${video.title}\nالوصف: ${video.description ?? "بدون وصف"}\nالمدة: ${video.duration_sec ?? "غير معروفة"} ثانية\nالتصنيف: ${video.content_rating ?? "غير محدد"}\nتحذيرات المحتوى: ${(video.content_warnings ?? []).join("، ") || "لا توجد"}\nطاقم موثق: ${cast}\nاللقطات: ${related || "لا توجد لقطات مفهرسة"}`;
       })
       .join("\n---\n");
     const allowedTitles = (catalog ?? []).map((video: any) => video.title).filter(Boolean).join("، ");
@@ -831,6 +834,42 @@ export const chatWithMaria = createServerFn({ method: "POST" })
     });
 
     return { reply };
+  });
+
+export const updateMovieMetadata = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) =>
+    z
+      .object({
+        video_id: z.string().uuid(),
+        content_rating: z.string().max(30).nullable().optional(),
+        content_warnings: z.array(z.string().max(80)).max(20).default([]),
+        cast_members: z
+          .array(
+            z.object({
+              name: z.string().min(1).max(120),
+              role: z.string().max(120).nullable().optional(),
+              bio: z.string().max(500).nullable().optional(),
+              image_url: z.string().url().max(1000).nullable().optional(),
+            }),
+          )
+          .max(30)
+          .default([]),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { error } = await supabaseAdmin
+      .from("videos")
+      .update({
+        content_rating: data.content_rating ?? null,
+        content_warnings: data.content_warnings,
+        cast_members: data.cast_members,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", data.video_id);
+    if (error) throw new Error(error.message);
+    return { ok: true };
   });
 
 export const getChatHistory = createServerFn({ method: "POST" })
