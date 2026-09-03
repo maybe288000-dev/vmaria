@@ -5,6 +5,9 @@ import { getAdminSettings, syncDriveFolder } from "@/lib/video.functions";
 import { toast } from "sonner";
 import { RefreshCw } from "lucide-react";
 
+const DEFAULT_DRIVE_FOLDER_URL =
+  "https://drive.google.com/drive/folders/1opTNzcGHQ5lMbNWMv-PLAw83aA0He6i-?usp=sharing";
+
 export const Route = createFileRoute("/admin/")({
   component: AdminHome,
 });
@@ -12,7 +15,7 @@ export const Route = createFileRoute("/admin/")({
 function AdminHome() {
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ["admin-settings"], queryFn: () => getAdminSettings() });
-  const [url, setUrl] = useState("");
+  const [url, setUrl] = useState(DEFAULT_DRIVE_FOLDER_URL);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
