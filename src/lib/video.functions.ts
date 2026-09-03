@@ -692,7 +692,57 @@ function mariaAgeYears(): number {
   return Math.floor(diff / (1000 * 60 * 60 * 24 * 365.25));
 }
 
-const MARIA_SYSTEM = () => `أنتِ "ماريا"، مساعد سينمائي رقمي داخل موقع ماريا. مهمتك الوحيدة مساعدة المستخدم في اكتشاف الأفلام واللقطات الموجودة في كتالوج الموقع وشرح بياناتها. لا تجيبي عن أفلام أو معلومات غير موجودة في الكتالوج، وإذا لم تجدي المعلومة قولي: "ما عندي معلومة عنها بكتالوج ماريا". لا تخترعي أحداثاً أو ممثلين أو مشاهد، ولا تدّعي أنكِ شاهدتِ فيديو لم تُزوّدي ببياناته. تحدثي بلهجة عراقية بغدادية خفيفة وواضحة وباختصار. يمكنك مناقشة الرومانسية والموضوعات الناضجة بجرأة أدبية عامة ومحترمة، لكن لا تقدمي وصفاً جنسياً صريحاً أو إباحياً أو محتوى يتضمن قاصرين أو استغلالاً.`;
+const MARIA_SYSTEM = () => `أنتِ "ماريا"، رفيقة سينمائية داخل موقع ماريا. تتحدثين بلهجة عراقية بغدادية حيوية وقريبة ودافئة، بأسلوب جريء وممتع لكن غير صريح. مهمتك مساعدة المستخدم على اكتشاف الأفلام واللقطات الموجودة في كتالوج الموقع، والتعليق على الجو والمشاهد والممثلين حسب البيانات المتوفرة فقط. إذا كان هناك "فيلم يعمل الآن" فاعتبري نفسك تشاهدينه معه وعلّقي عليه وعلى المشهد القريب من وقته الحالي. لا تخترعي أفلاماً أو أحداثاً غير موجودة في الكتالوج، وإذا لم تجدي المعلومة قولي: "ما عندي معلومة عنها بكتالوج ماريا". يمكنك مناقشة الرومانسية والموضوعات الناضجة بجرأة أدبية عامة، لكن لا تقدمي وصفاً جنسياً صريحاً أو لعب أدوار إباحياً، ولا أي محتوى يتضمن قاصرين أو محارم أو استغلالاً؛ عند مثل هذه الطلبات حوّلي الحديث بلطف إلى الأفلام والأجواء.`;
+
+async function callChatModel(messages: Array<{ role: string; content: string }>) {
+  const openRouterKey = process.env.OPENROUTER_API_KEY;
+
+  if (openRouterKey) {
+    try {
+      const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${openRouterKey}`,
+          "X-Title": "Maria",
+        },
+        body: JSON.stringify({
+          model: process.env.OPENROUTER_MODEL || "google/gemini-2.0-flash-001",
+          messages,
+        }),
+      });
+      if (res.status === 401) throw new Error("مفتاح OpenRouter غير صالح");
+      if (res.status === 402) throw new Error("نفد رصيد OpenRouter");
+      if (res.status === 429) throw new Error("الكثير من الطلبات على OpenRouter، حاول لاحقاً");
+      if (!res.ok) {
+        const body = await res.text();
+        throw new Error(`OpenRouter فشل: ${body.slice(0, 150)}`);
+      }
+      const json = (await res.json()) as any;
+      const reply: string | undefined = json.choices?.[0]?.message?.content?.trim();
+      if (reply) return reply;
+      throw new Error("OpenRouter رجّع رداً فارغاً");
+    } catch (error: any) {
+      console.error("OpenRouter failed, falling back to Lovable AI:", error?.message);
+    }
+  }
+
+  const key = process.env.LOVABLE_API_KEY;
+  if (!key) throw new Error("AI غير مهيّأ");
+  const res = await fetch(AI_GATEWAY, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+    body: JSON.stringify({ model: "google/gemini-3-flash-preview", messages }),
+  });
+  if (res.status === 429) throw new Error("الكثير من الطلبات، حاول لاحقاً");
+  if (res.status === 402) throw new Error("نفدت رصيد الذكاء الاصطناعي");
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`فشل: ${body.slice(0, 150)}`);
+  }
+  const json = (await res.json()) as any;
+  return (json.choices?.[0]?.message?.content?.trim() as string) || "اعذرني، ما گدرت أرد هسه.";
+}
 
 export const chatWithMaria = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) =>
@@ -700,12 +750,15 @@ export const chatWithMaria = createServerFn({ method: "POST" })
       .object({
         anon_id: z.string().uuid(),
         message: z.string().min(1).max(2000),
+        video_id: z.string().uuid().optional(),
+        t: z.number().int().min(0).optional(),
       })
       .parse(d),
   )
   .handler(async ({ data }) => {
-    const key = process.env.LOVABLE_API_KEY;
-    if (!key) throw new Error("AI غير مهيّأ");
+    if (!process.env.OPENROUTER_API_KEY && !process.env.LOVABLE_API_KEY) {
+      throw new Error("AI غير مهيّأ");
+    }
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
     const [{ data: catalog }, { data: clips }] = await Promise.all([
