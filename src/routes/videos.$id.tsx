@@ -77,9 +77,19 @@ function VideoPage() {
   }, [id, tParam]);
 
   useEffect(() => {
-    window.dispatchEvent(new CustomEvent("maria-current-movie", { detail: id }));
+    window.dispatchEvent(new CustomEvent("maria-current-movie", { detail: { videoId: id, currentTime: startSec ?? 0 } }));
     return () => window.dispatchEvent(new CustomEvent("maria-current-movie", { detail: undefined }));
-  }, [id]);
+  }, [id, startSec]);
+
+  // Periodically update Maria with the current playback position while watching
+  useEffect(() => {
+    if (!playing) return;
+    const interval = setInterval(() => {
+      const t = (startSec ?? 0) + secondsRef.current;
+      window.dispatchEvent(new CustomEvent("maria-current-movie", { detail: { videoId: id, currentTime: t } }));
+    }, 10000);
+    return () => clearInterval(interval);
+  }, [playing, id, startSec]);
 
   const q = useQuery({
     queryKey: ["video", id],

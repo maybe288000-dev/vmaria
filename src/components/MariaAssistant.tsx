@@ -1,10 +1,39 @@
 import { useEffect, useRef, useState } from "react";
+import { Link } from "@tanstack/react-router";
 import { MessageCircle, Send, Sparkles, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { chatWithMaria, clearChatHistory, getChatHistory } from "@/lib/video.functions";
 import { getAnonId } from "@/lib/anon-id";
 
-type Message = { role: "user" | "assistant"; content: string };
+type ReferencedMovie = { title: string; video_id: string };
+type Message = { role: "user" | "assistant"; content: string; referenced_movies?: ReferencedMovie[] };
+
+function renderMessageContent(message: Message) {
+  if (message.role !== "assistant" || !message.referenced_movies?.length) {
+    return message.content;
+  }
+  const sorted = [...message.referenced_movies].sort((a, b) => b.title.length - a.title.length);
+  const escaped = sorted.map((m) => m.title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  const regex = new RegExp(`(${escaped.join("|")})`, "g");
+  const parts = message.content.split(regex);
+  const movieMap = new Map(message.referenced_movies.map((m) => [m.title, m]));
+  return parts.map((part, i) => {
+    const movie = movieMap.get(part);
+    if (movie) {
+      return (
+        <Link
+          key={i}
+          to="/videos/$id"
+          params={{ id: movie.video_id }}
+          className="text-primary font-semibold hover:underline"
+        >
+          {part}
+        </Link>
+      );
+    }
+    return <span key={i}>{part}</span>;
+  });
+}
 
 const starters = ["رشّح لي فيلمًا الليلة", "أريد فيلمًا قصيرًا ومشوقًا", "شنو أفضل لقطة أبدأ بها؟"];
 
@@ -12,6 +41,7 @@ export function MariaAssistant() {
   const [open, setOpen] = useState(false);
   const [anonId, setAnonId] = useState("");
   const [currentVideoId, setCurrentVideoId] = useState<string | undefined>();
+  const [currentTime, setCurrentTime] = useState<number | undefined>();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
@@ -24,7 +54,17 @@ export function MariaAssistant() {
       .then((rows: any[]) => setMessages(rows.filter((m) => m.role !== "system")))
       .catch(() => undefined);
     const onMovieChange = (event: Event) => {
-      setCurrentVideoId((event as CustomEvent<string | undefined>).detail);
+      const detail = (event as CustomEvent).detail;
+      if (detail && typeof detail === "object") {
+        setCurrentVideoId(detail.videoId);
+        setCurrentTime(detail.currentTime);
+      } else if (typeof detail === "string") {
+        setCurrentVideoId(detail);
+        setCurrentTime(undefined);
+      } else {
+        setCurrentVideoId(undefined);
+        setCurrentTime(undefined);
+      }
     };
     window.addEventListener("maria-current-movie", onMovieChange);
     return () => window.removeEventListener("maria-current-movie", onMovieChange);
@@ -41,8 +81,8 @@ export function MariaAssistant() {
     setMessages((current) => [...current, { role: "user", content: message }]);
     setBusy(true);
     try {
-      const result = await chatWithMaria({ data: { anon_id: anonId, message, video_id: currentVideoId } });
-      setMessages((current) => [...current, { role: "assistant", content: result.reply }]);
+      const result = await chatWithMaria({ data: { anon_id: anonId, message, video_id: currentVideoId, t: currentTime } });
+      setMessages((current) => [...current, { role: "assistant", content: result.reply, referenced_movies: result.referenced_movies }]);
     } catch (error: any) {
       toast.error(error?.message || "تعذّر الاتصال بالمساعد");
     } finally {
@@ -69,7 +109,7 @@ export function MariaAssistant() {
           </header>
           <div className="flex max-h-[min(52vh,430px)] min-h-44 flex-col gap-3 overflow-y-auto p-3">
             {messages.length === 0 && <div className="rounded-2xl bg-accent/40 p-3 text-sm leading-7 text-muted-foreground">هلا! اسأليني عن فيلم مناسب لمزاجك، أو اطلب لقطة تبدأ منها. أساعدك باختيارات واضحة ومحترمة.</div>}
-            {messages.map((message, index) => <div key={`${message.role}-${index}`} className={`max-w-[88%] rounded-2xl px-3 py-2 text-sm leading-6 ${message.role === "user" ? "self-start rounded-br-md bg-primary text-primary-foreground" : "self-end rounded-bl-md bg-muted text-foreground"}`}>{message.content}</div>)}
+            {messages.map((message, index) => <div key={`${message.role}-${index}`} className={`max-w-[88%] rounded-2xl px-3 py-2 text-sm leading-6 ${message.role === "user" ? "self-start rounded-br-md bg-primary text-primary-foreground" : "self-end rounded-bl-md bg-muted text-foreground"}`}>{renderMessageContent(message)}</div>)}
             {busy && <div className="self-end rounded-2xl rounded-bl-md bg-muted px-3 py-2 text-sm text-muted-foreground">أفكّر بالاختيار المناسب…</div>}
             <div ref={endRef} />
           </div>
