@@ -3,6 +3,7 @@ import { z } from "zod";
 
 const GATEWAY = "https://connector-gateway.lovable.dev/google_drive/drive/v3";
 const AI_GATEWAY = "https://ai.gateway.lovable.dev/v1/chat/completions";
+const OPENROUTER_GATEWAY = "https://openrouter.ai/api/v1/chat/completions";
 
 // ---------- Public reads ----------
 export const listPublicVideos = createServerFn({ method: "GET" }).handler(async () => {
@@ -705,8 +706,11 @@ export const chatWithMaria = createServerFn({ method: "POST" })
       .parse(d),
   )
   .handler(async ({ data }) => {
-    const key = process.env.LOVABLE_API_KEY;
-    if (!key) throw new Error("AI غير مهيّأ");
+    const openRouterKey = process.env.OPENROUTER_API_KEY;
+    const lovableKey = process.env.LOVABLE_API_KEY;
+    const key = openRouterKey || lovableKey;
+    const gateway = openRouterKey ? OPENROUTER_GATEWAY : AI_GATEWAY;
+    if (!key) throw new Error("لم يتم إعداد مفتاح الذكاء الاصطناعي على الخادم");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
     const videosQuery = supabaseAdmin
@@ -775,11 +779,20 @@ export const chatWithMaria = createServerFn({ method: "POST" })
       { role: "user", content: data.message },
     ];
 
-    const res = await fetch(AI_GATEWAY, {
+    const res = await fetch(gateway, {
       method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${key}`,
+        ...(openRouterKey
+          ? {
+              "HTTP-Referer": "https://vmaria.lovable.app",
+              "X-Title": "Maria Movie Assistant",
+            }
+          : {}),
+      },
       body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
+        model: openRouterKey ? "openai/gpt-4o-mini" : "google/gemini-3-flash-preview",
         messages,
       }),
     });
