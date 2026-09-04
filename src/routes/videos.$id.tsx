@@ -78,7 +78,9 @@ function VideoPage() {
 
   useEffect(() => {
     window.dispatchEvent(new CustomEvent("maria-current-movie", { detail: id }));
-    return () => window.dispatchEvent(new CustomEvent("maria-current-movie", { detail: undefined }));
+    return () => {
+      window.dispatchEvent(new CustomEvent("maria-current-movie", { detail: undefined }));
+    };
   }, [id]);
 
   const q = useQuery({
@@ -313,7 +315,7 @@ function VideoPage() {
             </p>
           )}
 
-          {(v.content_rating || v.content_warnings?.length || v.cast_members?.length) && (
+          {(v.content_rating || v.content_warnings?.length || (Array.isArray(v.cast_members) && v.cast_members.length > 0)) && (
             <section className="mt-4 rounded-2xl border border-border bg-card/60 p-4">
               <div className="flex flex-wrap items-center gap-2">
                 {v.content_rating && <span className="rounded-full bg-primary/15 px-3 py-1 text-xs font-bold text-primary">{v.content_rating}</span>}
