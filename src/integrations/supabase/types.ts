@@ -302,6 +302,9 @@ export type Database = {
       videos: {
         Row: {
           ai_processed: boolean
+          cast_members: Json
+          content_rating: string | null
+          content_warnings: string[]
           created_at: string
           description: string | null
           drive_file_id: string
@@ -315,6 +318,9 @@ export type Database = {
         }
         Insert: {
           ai_processed?: boolean
+          cast_members?: Json
+          content_rating?: string | null
+          content_warnings?: string[]
           created_at?: string
           description?: string | null
           drive_file_id: string
@@ -328,6 +334,9 @@ export type Database = {
         }
         Update: {
           ai_processed?: boolean
+          cast_members?: Json
+          content_rating?: string | null
+          content_warnings?: string[]
           created_at?: string
           description?: string | null
           drive_file_id?: string
