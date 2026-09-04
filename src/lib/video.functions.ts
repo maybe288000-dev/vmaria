@@ -382,10 +382,11 @@ export const generateVideoDescription = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: video } = await supabaseAdmin
       .from("videos")
-      .select("id, title")
+      .select("id, title, description")
       .eq("id", data.video_id)
       .maybeSingle();
     if (!video) throw new Error("الفيديو غير موجود");
+    if (video.description?.trim()) return { description: video.description, preserved: true };
 
     const res = await fetch(AI_GATEWAY, {
       method: "POST",
@@ -579,8 +580,13 @@ export const generateClipsAI = createServerFn({ method: "POST" })
       parsed = {};
     }
     const clips = (parsed.clips ?? []).slice(0, 10);
-
-    await supabaseAdmin.from("clips").delete().eq("video_id", data.video_id);
+    const { data: existingClips } = await supabaseAdmin
+      .from("clips")
+      .select("title, start_sec")
+      .eq("video_id", data.video_id);
+    const existingKeys = new Set(
+      (existingClips ?? []).map((clip: any) => `${String(clip.title).trim().toLowerCase()}|${clip.start_sec}`),
+    );
     const rows = clips.map((c: any, i: number) => ({
       video_id: data.video_id,
       title: String(c.title ?? `لقطة ${i + 1}`).slice(0, 200),
@@ -589,14 +595,17 @@ export const generateClipsAI = createServerFn({ method: "POST" })
       end_sec: c.end_sec ? Math.max(0, Math.min(dur, parseInt(c.end_sec, 10))) : null,
       tags: Array.isArray(c.tags) ? c.tags.map(String).slice(0, 10) : [],
       order_index: i,
-    }));
-    if (rows.length > 0) await supabaseAdmin.from("clips").insert(rows);
+    })).filter((row: any) => !existingKeys.has(`${row.title.trim().toLowerCase()}|${row.start_sec}`));
+    if (rows.length > 0) {
+      const { error } = await supabaseAdmin.from("clips").insert(rows);
+      if (error) throw new Error(error.message);
+    }
     await supabaseAdmin
       .from("videos")
       .update({ ai_processed: true, updated_at: new Date().toISOString() })
       .eq("id", data.video_id);
 
-    return { count: rows.length };
+    return { count: rows.length, preserved: existingClips?.length ?? 0 };
   });
 
 export const updateClip = createServerFn({ method: "POST" })
