@@ -10,7 +10,7 @@ export const listPublicVideos = createServerFn({ method: "GET" }).handler(async 
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data, error } = await supabaseAdmin
     .from("videos")
-    .select("id, drive_file_id, title, thumbnail_url, duration_sec, created_at")
+    .select("id, drive_file_id, title, description, thumbnail_url, duration_sec, content_rating, content_warnings, created_at")
     .order("created_at", { ascending: false })
     .limit(2000);
   if (error) throw new Error(error.message);
@@ -160,6 +160,29 @@ export const getVideo = createServerFn({ method: "POST" })
       clips: clips.data ?? [],
       comments: comments.data ?? [],
     };
+  });
+
+export const getRelatedVideos = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ video_id: z.string().uuid(), limit: z.number().int().min(1).max(12).default(8) }).parse(d))
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const [{ data: current }, { data: videos }, { data: clips }] = await Promise.all([
+      supabaseAdmin.from("videos").select("id, title, description, content_rating, content_warnings, cast_members").eq("id", data.video_id).maybeSingle(),
+      supabaseAdmin.from("videos").select("id, drive_file_id, title, description, thumbnail_url, duration_sec, content_rating, content_warnings, cast_members").neq("id", data.video_id).limit(500),
+      supabaseAdmin.from("clips").select("video_id, title, description, tags").limit(3000),
+    ]);
+    if (!current) return [];
+    const words = (value: unknown) => new Set(String(value ?? "").toLowerCase().split(/[^\p{L}\p{N}]+/u).filter((word) => word.length > 2));
+    const clipText = new Map<string, string>();
+    for (const clip of clips ?? []) clipText.set(clip.video_id, `${clipText.get(clip.video_id) ?? ""} ${clip.title ?? ""} ${clip.description ?? ""} ${(clip.tags ?? []).join(" ")}`);
+    const currentWords = words(`${current.title} ${current.description ?? ""} ${(current.content_warnings ?? []).join(" ")} ${JSON.stringify(current.cast_members ?? [])} ${clipText.get(current.id) ?? ""}`);
+    return (videos ?? []).map((video: any) => {
+      const videoWords = words(`${video.title} ${video.description ?? ""} ${(video.content_warnings ?? []).join(" ")} ${JSON.stringify(video.cast_members ?? [])} ${clipText.get(video.id) ?? ""}`);
+      let shared = 0;
+      for (const word of currentWords) if (videoWords.has(word)) shared += 1;
+      const union = new Set([...currentWords, ...videoWords]).size || 1;
+      return { ...video, match_score: Math.round((shared / union) * 100) };
+    }).filter((video: any) => video.match_score > 0).sort((a: any, b: any) => b.match_score - a.match_score).slice(0, data.limit);
   });
 
 export const listVideoStats = createServerFn({ method: "POST" })

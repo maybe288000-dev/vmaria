@@ -43,9 +43,11 @@ function HomePage() {
     }
   }, [videos.data]);
 
-  const filtered = (videos.data ?? []).filter((v: any) =>
-    search.trim() === "" ? true : v.title?.toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = (videos.data ?? []).filter((v: any) => {
+    if (search.trim() === "") return true;
+    const needle = search.toLowerCase();
+    return `${v.title ?? ""} ${v.description ?? ""}`.toLowerCase().includes(needle);
+  });
 
   const openVideo = (id: string) => {
     saveHomeState(window.scrollY, search);
@@ -60,6 +62,15 @@ function HomePage() {
     <div className="min-h-screen">
       <AppNav />
       <main className="container mx-auto px-3 py-4 sm:px-4 sm:py-6">
+        <section className="relative mb-6 min-h-[220px] overflow-hidden rounded-[2rem] border border-primary/20 bg-[#120e0b] shadow-2xl shadow-black/30">
+          <img src="/maria-brand.jpg" alt="هوية ماريا السينمائية" className="absolute inset-0 h-full w-full object-cover opacity-35" />
+          <div className="absolute inset-0 bg-gradient-to-l from-[#0e0a08] via-[#0e0a08]/75 to-transparent" />
+          <div className="relative z-10 flex min-h-[220px] max-w-2xl flex-col justify-center p-6 sm:p-10">
+            <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.35em] text-primary">MARIA · CINEMA LIBRARY</p>
+            <h1 className="text-3xl font-black tracking-tight text-white sm:text-5xl">مزاج الفيلم يبدأ من هنا</h1>
+            <p className="mt-3 max-w-xl text-sm leading-7 text-white/70">أفلام، لقطات، وتوصيات مبنية على الجو والمحتوى والموضوعات المشتركة — مو مجرد تشابه بالأسماء.</p>
+          </div>
+        </section>
         <TrailersHero onOpen={openVideo} />
 
         {anonId && authed && <ContinueWatching anonId={anonId} />}
@@ -77,7 +88,7 @@ function HomePage() {
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="ابحث عن فيلم..."
+              placeholder="ابحث بالعنوان أو الوصف..."
               className="w-full sm:w-64 rounded-full border border-border bg-input px-4 py-2 text-sm outline-none focus:border-primary"
             />
           </div>

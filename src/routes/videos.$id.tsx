@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AppNav } from "@/components/AppNav";
+import { RelatedVideos } from "@/components/RelatedVideos";
 import {
   getVideo,
   listVideoStats,
@@ -350,6 +351,7 @@ function VideoPage() {
           </div>
 
           <ClipsSection clips={q.data.clips} videoId={id} />
+          <RelatedVideos videoId={id} />
 
           {/* Collapsible comments */}
           <section className="mt-6 rounded-xl border border-border bg-card/60">

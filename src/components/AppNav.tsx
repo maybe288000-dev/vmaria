@@ -37,8 +37,8 @@ export function AppNav() {
     <header className="sticky top-0 z-40 border-b border-border bg-background/80 backdrop-blur safe-top">
       <div className="container mx-auto flex h-14 items-center justify-between px-3 gap-2">
         <Link to="/" className="flex items-center gap-2 font-bold text-lg shrink-0">
-          <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-primary-glow">
-            <Film className="h-4 w-4 text-primary-foreground" />
+          <span className="inline-flex h-8 w-8 overflow-hidden rounded-lg border border-primary/40 bg-gradient-to-br from-primary to-primary-glow">
+            <img src="/maria-brand.jpg" alt="" className="h-full w-full object-cover" />
           </span>
           <span>ماريا</span>
         </Link>
