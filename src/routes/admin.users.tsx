@@ -8,10 +8,11 @@ import {
   adminResetPassword,
   adminSetBlocked,
   adminDeleteAppUser,
+  adminSetRole,
 } from "@/lib/auth.functions";
-import { ADMIN_PASSWORD, isAdminAuthed } from "@/lib/auth-gate";
+import { ADMIN_PASSWORD, getCurrentUser, isAdminAuthed } from "@/lib/auth-gate";
 import { supabase } from "@/integrations/supabase/client";
-import { Ban, Trash2, X, UserPlus, KeyRound, Radio } from "lucide-react";
+import { Ban, Trash2, X, UserPlus, KeyRound, Radio, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/admin/users")({
@@ -99,6 +100,15 @@ function AdminUsers() {
       toast.success("تم حذف الحساب");
     },
   });
+  const role = useMutation({
+    mutationFn: (v: { user_id: string; role: "user" | "admin" }) =>
+      adminSetRole({ data: { admin_password: ADMIN_PASSWORD, actor_user_id: getCurrentUser()?.id ?? "00000000-0000-0000-0000-000000000000", ...v } }),
+    onSuccess: (_, variables) => {
+      qc.invalidateQueries({ queryKey: ["app-users"] });
+      toast.success(variables.role === "admin" ? "تم منح صلاحية الإدارة" : "تم سحب صلاحية الإدارة");
+    },
+    onError: (e: any) => toast.error(e?.message || "تعذّر تغيير الصلاحية"),
+  });
 
   const fmtSec = (s: number) => {
     const m = Math.floor(s / 60);
@@ -129,6 +139,7 @@ function AdminUsers() {
             <tr>
               <th className="p-2 text-right">المستخدم</th>
               <th className="p-2 text-right">الحالة</th>
+              <th className="p-2 text-right">الدور</th>
               <th className="p-2 text-right">آخر نشاط</th>
               <th className="p-2 text-right">المدة</th>
               <th className="p-2 text-right">جلسات</th>
@@ -154,7 +165,10 @@ function AdminUsers() {
                     <span className="text-muted-foreground text-xs">غير متّصل</span>
                   )}
                 </td>
-                <td className="p-2 text-xs">
+                <td className="p-2">
+                  {u.role === "admin" ? <span className="inline-flex items-center gap-1 text-primary text-xs"><ShieldCheck className="h-3.5 w-3.5" /> مدير</span> : <span className="text-muted-foreground text-xs">مستخدم</span>}
+                </td>
+                <td className="p-2">
                   {u.last_activity_at || u.last_seen_at
                     ? new Date(u.last_activity_at || u.last_seen_at).toLocaleString("ar")
                     : "—"}
@@ -171,6 +185,14 @@ function AdminUsers() {
                       className="rounded px-2 py-1 text-xs bg-primary/10 text-primary"
                     >
                       عرض
+                    </button>
+                    <button
+                      onClick={() => role.mutate({ user_id: u.id, role: u.role === "admin" ? "user" : "admin" })}
+                      disabled={role.isPending || ["mari", "mari2"].includes(String(u.username).toLowerCase())}
+                      className="rounded px-2 py-1 text-xs bg-primary/10 text-primary disabled:opacity-40"
+                      title={["mari", "mari2"].includes(String(u.username).toLowerCase()) ? "مدير أساسي محمي" : u.role === "admin" ? "سحب الإدارة" : "منح الإدارة"}
+                    >
+                      {u.role === "admin" ? "سحب الإدارة" : "منح الإدارة"}
                     </button>
                     <button
                       onClick={() => setResetFor({ id: u.id, username: u.username })}
@@ -200,7 +222,7 @@ function AdminUsers() {
             ))}
             {(users.data ?? []).length === 0 && (
               <tr>
-                <td colSpan={7} className="p-6 text-center text-muted-foreground text-sm">
+                <td colSpan={8} className="p-6 text-center text-muted-foreground text-sm">
                   لا يوجد مستخدمون بعد — اضغط "مستخدم جديد" لإنشاء أول حساب.
                 </td>
               </tr>

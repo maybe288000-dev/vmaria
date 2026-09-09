@@ -11,6 +11,7 @@ export type CurrentUser = {
   id: string;
   username: string;
   display_name?: string | null;
+  role?: "user" | "admin";
 };
 
 export function getCurrentUser(): CurrentUser | null {

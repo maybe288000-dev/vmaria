@@ -1,7 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { userLogin } from "@/lib/auth.functions";
-import { setCurrentUser } from "@/lib/auth-gate";
+import { setCurrentUser, setAdminAuthed } from "@/lib/auth-gate";
 import { Film, User, Lock } from "lucide-react";
 import { toast } from "sonner";
 
@@ -25,6 +25,7 @@ function LoginPage() {
     try {
       const u = await userLogin({ data: { username, password } });
       setCurrentUser(u);
+      if (u.role === "admin") setAdminAuthed(true);
       toast.success(`أهلاً ${u.display_name || u.username}`);
       navigate({ to: redirect || "/", replace: true });
     } catch (err: any) {

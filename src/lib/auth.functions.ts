@@ -34,7 +34,7 @@ export const userLogin = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: row, error } = await supabaseAdmin
       .from("app_users")
-      .select("id, username, display_name, password_hash, blocked")
+      .select("id, username, display_name, password_hash, blocked, role")
       .eq("username", data.username)
       .maybeSingle();
     if (error) throw new Error(error.message);
@@ -47,7 +47,7 @@ export const userLogin = createServerFn({ method: "POST" })
       .from("app_users")
       .update({ last_login_at: now, last_seen_at: now })
       .eq("id", row.id);
-    return { id: row.id, username: row.username, display_name: row.display_name };
+    return { id: row.id, username: row.username, display_name: row.display_name, role: row.role === "admin" ? "admin" as const : "user" as const };
   });
 
 export const userPing = createServerFn({ method: "POST" })
@@ -145,6 +145,37 @@ export const adminSetBlocked = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+export const adminSetRole = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) =>
+    z.object({ admin_password: adminPasswordSchema, actor_user_id: z.string().uuid(), user_id: z.string().uuid(), role: z.enum(["user", "admin"]) }).parse(d),
+  )
+  .handler(async ({ data }) => {
+    assertAdmin(data.admin_password);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: actor, error: actorError } = await supabaseAdmin
+      .from("app_users")
+      .select("id, username, role, blocked")
+      .eq("id", data.actor_user_id)
+      .maybeSingle();
+    if (actorError) throw new Error(actorError.message);
+    if (!actor || actor.blocked || actor.role !== "admin" || !["mari", "mari2"].includes(String(actor.username).toLowerCase())) {
+      throw new Error("منح الإدارة متاح فقط للحسابين الأساسيين mari و mari2");
+    }
+    const { data: target, error: targetError } = await supabaseAdmin
+      .from("app_users")
+      .select("id, username, role")
+      .eq("id", data.user_id)
+      .maybeSingle();
+    if (targetError) throw new Error(targetError.message);
+    if (!target) throw new Error("المستخدم غير موجود");
+    if (data.role === "user" && ["mari", "mari2"].includes(String(target.username).toLowerCase())) {
+      throw new Error("لا يمكن سحب الإدارة من الحسابات الأساسية mari و mari2");
+    }
+    const { error } = await supabaseAdmin.from("app_users").update({ role: data.role }).eq("id", data.user_id);
+    if (error) throw new Error(error.message);
+    return { ok: true, role: data.role };
+  });
+
 export const adminDeleteAppUser = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) =>
     z.object({ admin_password: adminPasswordSchema, user_id: z.string().uuid() }).parse(d),
@@ -169,7 +200,7 @@ export const adminListAppUsers = createServerFn({ method: "POST" })
     const [usersRes, sessionsRes, messagesRes, videosRes] = await Promise.all([
       supabaseAdmin
         .from("app_users")
-        .select("id, username, display_name, blocked, created_at, last_login_at, last_seen_at")
+        .select("id, username, display_name, blocked, role, created_at, last_login_at, last_seen_at")
         .order("created_at", { ascending: false }),
       supabaseAdmin
         .from("view_sessions")
@@ -241,7 +272,7 @@ export const adminUserDetail = createServerFn({ method: "POST" })
     const [user, sessions, messages] = await Promise.all([
       supabaseAdmin
         .from("app_users")
-        .select("id, username, display_name, blocked, created_at, last_login_at, last_seen_at")
+        .select("id, username, display_name, blocked, role, created_at, last_login_at, last_seen_at")
         .eq("id", data.user_id)
         .maybeSingle(),
       supabaseAdmin
