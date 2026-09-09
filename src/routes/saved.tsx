@@ -5,6 +5,7 @@ import { listSavedVideos } from "@/lib/video.functions";
 import { getAnonId } from "@/lib/anon-id";
 import { AppNav } from "@/components/AppNav";
 import { Bookmark, Film } from "lucide-react";
+import { driveThumbnailUrl } from "@/lib/drive";
 
 export const Route = createFileRoute("/saved")({
   component: Saved,
@@ -41,7 +42,7 @@ function Saved() {
               >
                 <div className="relative aspect-video bg-muted">
                   {v.thumbnail_url ? (
-                    <img src={v.thumbnail_url} alt={v.title} className="h-full w-full object-cover" />
+                    <img src={v.thumbnail_url} alt={v.title} className="h-full w-full object-cover" onError={(e) => { e.currentTarget.src = driveThumbnailUrl(v.drive_file_id, 800); }} />
                   ) : (
                     <Film className="h-10 w-10 text-muted-foreground m-auto" />
                   )}

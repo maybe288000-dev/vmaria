@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { getContinueWatching } from "@/lib/video.functions";
 import { Play, Film } from "lucide-react";
+import { driveThumbnailUrl } from "@/lib/drive";
 
 export function ContinueWatching({ anonId }: { anonId: string }) {
   const { data } = useQuery({
@@ -30,6 +31,7 @@ export function ContinueWatching({ anonId }: { anonId: string }) {
                   alt={it.video.title}
                   loading="lazy"
                   className="h-full w-full object-cover"
+                  onError={(e) => { e.currentTarget.src = driveThumbnailUrl(it.video.drive_file_id, 640); }}
                 />
               ) : (
                 <div className="flex h-full items-center justify-center">

@@ -10,6 +10,7 @@ import { Play, Film, Lock } from "lucide-react";
 import { getAnonId } from "@/lib/anon-id";
 import { isUserAuthed } from "@/lib/auth-gate";
 import { saveHomeState, loadHomeState } from "@/lib/scroll-restore";
+import { driveThumbnailUrl } from "@/lib/drive";
 
 export const Route = createFileRoute("/")({
   component: HomePage,
@@ -130,6 +131,7 @@ function HomePage() {
                         className="h-full w-full object-cover group-hover:scale-[1.03] transition-transform duration-500"
                         loading="lazy"
                         referrerPolicy="no-referrer"
+                        onError={(e) => { e.currentTarget.src = driveThumbnailUrl(v.drive_file_id, 800); }}
                       />
                     ) : (
                       <div className="flex h-full items-center justify-center">

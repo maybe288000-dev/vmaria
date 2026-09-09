@@ -9,6 +9,7 @@ import {
 import { toast } from "sonner";
 import { Sparkles, Trash2, Film, Wand2, Square, FileText } from "lucide-react";
 import { useRef, useState } from "react";
+import { driveThumbnailUrl } from "@/lib/drive";
 
 export const Route = createFileRoute("/admin/videos")({
   component: AdminVideos,
@@ -31,7 +32,7 @@ function AdminVideos() {
     setBusy(id);
     try {
       const r = await generateClipsAI({ data: { video_id: id } });
-      toast.success(`تم توليد ${r.count} لقطة`);
+      toast.success(`تمت إضافة ${r.count} لقطة مع الحفاظ على ${r.preserved ?? 0} لقطة سابقة`);
       qc.invalidateQueries({ queryKey: ["video", id] });
       qc.invalidateQueries({ queryKey: ["random-clips"] });
     } catch (e: any) {
@@ -44,8 +45,8 @@ function AdminVideos() {
   const genDesc = async (id: string) => {
     setBusyDesc(id);
     try {
-      await generateVideoDescription({ data: { video_id: id } });
-      toast.success("تم توليد الوصف");
+      const r = await generateVideoDescription({ data: { video_id: id } });
+      toast.success(r.preserved ? "الوصف الموجود محفوظ ولم يتم استبداله" : "تم توليد الوصف");
       qc.invalidateQueries({ queryKey: ["videos"] });
       qc.invalidateQueries({ queryKey: ["video", id] });
     } catch (e: any) {
@@ -181,7 +182,7 @@ function AdminVideos() {
             >
               <div className="h-14 w-24 shrink-0 overflow-hidden rounded bg-muted">
                 {v.thumbnail_url ? (
-                  <img src={v.thumbnail_url} alt="" className="h-full w-full object-cover" />
+                  <img src={v.thumbnail_url} alt="" className="h-full w-full object-cover" onError={(e) => { e.currentTarget.src = driveThumbnailUrl(v.drive_file_id, 640); }} />
                 ) : (
                   <Film className="h-6 w-6 m-auto text-muted-foreground" />
                 )}

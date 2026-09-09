@@ -400,8 +400,9 @@ export const getResumePoint = createServerFn({ method: "POST" })
 export const generateVideoDescription = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => z.object({ video_id: z.string().uuid() }).parse(d))
   .handler(async ({ data }) => {
-    const key = process.env.LOVABLE_API_KEY;
-    if (!key) throw new Error("LOVABLE_API_KEY غير مهيّأ");
+    const openRouterKey = process.env.OPENROUTER_API_KEY;
+    const key = openRouterKey || process.env.LOVABLE_API_KEY;
+    if (!key) throw new Error("لم يتم إعداد مفتاح الذكاء الاصطناعي");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: video } = await supabaseAdmin
       .from("videos")
@@ -411,11 +412,11 @@ export const generateVideoDescription = createServerFn({ method: "POST" })
     if (!video) throw new Error("الفيديو غير موجود");
     if (video.description?.trim()) return { description: video.description, preserved: true };
 
-    const res = await fetch(AI_GATEWAY, {
+    const res = await fetch(openRouterKey ? OPENROUTER_GATEWAY : AI_GATEWAY, {
       method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}`, ...(openRouterKey ? { "HTTP-Referer": "https://vmaria.lovable.app", "X-Title": "Maria Movie Catalog" } : {}) },
       body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
+        model: openRouterKey ? (process.env.OPENROUTER_MODEL || "google/gemini-2.0-flash-001") : "google/gemini-3-flash-preview",
         messages: [
           {
             role: "system",
@@ -513,20 +514,36 @@ export const syncDriveFolder = createServerFn({ method: "POST" })
       const files = json.files ?? [];
       totalFiles += files.length;
 
+      const driveIds = files.map((file: any) => file.id).filter(Boolean);
+      const { data: existingVideos } = driveIds.length
+        ? await supabaseAdmin
+            .from("videos")
+            .select("drive_file_id, description, thumbnail_url, duration_sec, content_rating, content_warnings, cast_members, ai_processed")
+            .in("drive_file_id", driveIds)
+        : { data: [] as any[] };
+      const existingByDriveId = new Map((existingVideos ?? []).map((video: any) => [video.drive_file_id, video]));
+
       // Batch upsert
-      const rows = files.map((f: any) => ({
+      const rows = files.map((f: any) => {
+        const previous = existingByDriveId.get(f.id);
+        return {
         drive_file_id: f.id,
         title: (f.name ?? "بدون عنوان").replace(/\.[a-zA-Z0-9]+$/, ""),
-        description: f.description ?? null,
+        description: f.description ?? previous?.description ?? null,
         thumbnail_url:
-          f.thumbnailLink ?? `https://drive.google.com/thumbnail?id=${f.id}&sz=w800`,
+          f.thumbnailLink ?? previous?.thumbnail_url ?? `https://drive.google.com/thumbnail?id=${f.id}&sz=w800`,
         duration_sec: f.videoMediaMetadata?.durationMillis
           ? Math.round(parseInt(f.videoMediaMetadata.durationMillis, 10) / 1000)
-          : null,
+          : previous?.duration_sec ?? null,
         mime_type: f.mimeType ?? null,
         size_bytes: f.size ? parseInt(f.size, 10) : null,
+        content_rating: previous?.content_rating ?? null,
+        content_warnings: previous?.content_warnings ?? [],
+        cast_members: previous?.cast_members ?? [],
+        ai_processed: previous?.ai_processed ?? false,
         updated_at: new Date().toISOString(),
-      }));
+        };
+      });
 
       // Batch insert in chunks of 500
       for (let i = 0; i < rows.length; i += 500) {
@@ -565,12 +582,13 @@ export const generateClipsAI = createServerFn({ method: "POST" })
       .maybeSingle();
     if (!video) throw new Error("الفيديو غير موجود");
 
-    const key = process.env.LOVABLE_API_KEY;
-    if (!key) throw new Error("LOVABLE_API_KEY غير مهيّأ");
+    const openRouterKey = process.env.OPENROUTER_API_KEY;
+    const key = openRouterKey || process.env.LOVABLE_API_KEY;
+    if (!key) throw new Error("لم يتم إعداد مفتاح الذكاء الاصطناعي");
     const dur = video.duration_sec || 600;
 
     const body = {
-      model: "google/gemini-3-flash-preview",
+      model: openRouterKey ? (process.env.OPENROUTER_MODEL || "google/gemini-2.0-flash-001") : "google/gemini-3-flash-preview",
       messages: [
         {
           role: "system",
@@ -585,9 +603,9 @@ export const generateClipsAI = createServerFn({ method: "POST" })
       response_format: { type: "json_object" },
     };
 
-    const res = await fetch(AI_GATEWAY, {
+    const res = await fetch(openRouterKey ? OPENROUTER_GATEWAY : AI_GATEWAY, {
       method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}`, ...(openRouterKey ? { "HTTP-Referer": "https://vmaria.lovable.app", "X-Title": "Maria Movie Catalog" } : {}) },
       body: JSON.stringify(body),
     });
     if (!res.ok) {

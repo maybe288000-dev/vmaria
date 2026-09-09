@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { getRandomClips } from "@/lib/video.functions";
 import { Film } from "lucide-react";
+import { driveThumbnailUrl } from "@/lib/drive";
 
 export function ClipsMarquee() {
   const { data, isLoading } = useQuery({
@@ -32,6 +33,7 @@ export function ClipsMarquee() {
                   alt={c.title}
                   loading="lazy"
                   className="h-full w-full object-cover"
+                  onError={(e) => { e.currentTarget.src = driveThumbnailUrl(c.video.drive_file_id, 640); }}
                 />
               ) : (
                 <div className="flex h-full items-center justify-center">

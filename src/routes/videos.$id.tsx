@@ -13,7 +13,7 @@ import {
   heartbeatViewSession,
   getResumePoint,
 } from "@/lib/video.functions";
-import { drivePreviewUrl } from "@/lib/drive";
+import { drivePreviewUrl, driveThumbnailUrl } from "@/lib/drive";
 import { getAnonId } from "@/lib/anon-id";
 import { isUserAuthed } from "@/lib/auth-gate";
 import {
@@ -294,6 +294,7 @@ function VideoPage() {
                     alt={v.title}
                     className="h-full w-full object-cover opacity-80 group-hover:opacity-100 transition-opacity"
                     referrerPolicy="no-referrer"
+                    onError={(e) => { e.currentTarget.src = driveThumbnailUrl(v.drive_file_id, 1280); }}
                   />
                 ) : null}
                 <span className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />

@@ -24,7 +24,7 @@ export function RelatedVideos({ videoId }: { videoId: string }) {
         {query.data.map((video: any) => (
           <Link key={video.id} to="/videos/$id" params={{ id: video.id }} className="group overflow-hidden rounded-2xl border border-border bg-card transition hover:-translate-y-0.5 hover:border-primary/60">
             <div className="relative aspect-video overflow-hidden bg-muted">
-              <img src={video.thumbnail_url || driveThumbnailUrl(video.drive_file_id, 640)} alt={video.title} className="h-full w-full object-cover transition duration-500 group-hover:scale-105" loading="lazy" referrerPolicy="no-referrer" />
+              <img src={video.thumbnail_url || driveThumbnailUrl(video.drive_file_id, 640)} alt={video.title} className="h-full w-full object-cover transition duration-500 group-hover:scale-105" loading="lazy" referrerPolicy="no-referrer" onError={(e) => { e.currentTarget.src = driveThumbnailUrl(video.drive_file_id, 640); }} />
               <span className="absolute bottom-2 right-2 rounded-full bg-black/70 px-2 py-1 text-[10px] text-white">{video.match_score}% تطابق</span>
             </div>
             <div className="p-3"><h3 className="line-clamp-2 text-sm font-semibold">{video.title}</h3><p className="mt-1 flex items-center gap-1 text-[10px] text-muted-foreground"><Film className="h-3 w-3" />مطابقة موضوعية</p></div>
