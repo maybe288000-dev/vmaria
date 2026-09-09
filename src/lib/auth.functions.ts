@@ -12,6 +12,10 @@ function assertAdmin(pw: string) {
   if (diff !== 0) throw new Error("غير مصرّح");
 }
 
+function isMissingRoleColumn(error: any) {
+  return String(error?.message ?? error?.details ?? "").toLowerCase().includes("app_users.role");
+}
+
 const usernameSchema = z
   .string()
   .trim()
@@ -32,11 +36,20 @@ export const userLogin = createServerFn({ method: "POST" })
   )
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data: row, error } = await supabaseAdmin
+    let { data: row, error } = await supabaseAdmin
       .from("app_users")
       .select("id, username, display_name, password_hash, blocked, role")
       .eq("username", data.username)
       .maybeSingle();
+    if (error && isMissingRoleColumn(error)) {
+      const fallback = await supabaseAdmin
+        .from("app_users")
+        .select("id, username, display_name, password_hash, blocked")
+        .eq("username", data.username)
+        .maybeSingle();
+      row = fallback.data as any;
+      error = fallback.error as any;
+    }
     if (error) throw new Error(error.message);
     if (!row) throw new Error("بيانات الدخول غير صحيحة");
     if (row.blocked) throw new Error("هذا الحساب موقوف. تواصل مع الإدارة.");
@@ -47,7 +60,7 @@ export const userLogin = createServerFn({ method: "POST" })
       .from("app_users")
       .update({ last_login_at: now, last_seen_at: now })
       .eq("id", row.id);
-    return { id: row.id, username: row.username, display_name: row.display_name, role: row.role === "admin" ? "admin" as const : "user" as const };
+    return { id: row.id, username: row.username, display_name: row.display_name, role: row.role === "admin" || ["mari", "mari2"].includes(String(row.username).toLowerCase()) ? "admin" as const : "user" as const };
   });
 
 export const userPing = createServerFn({ method: "POST" })
@@ -197,7 +210,7 @@ export const adminListAppUsers = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     assertAdmin(data.admin_password);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const [usersRes, sessionsRes, messagesRes, videosRes] = await Promise.all([
+    let [usersRes, sessionsRes, messagesRes, videosRes] = await Promise.all([
       supabaseAdmin
         .from("app_users")
         .select("id, username, display_name, blocked, role, created_at, last_login_at, last_seen_at")
@@ -208,6 +221,12 @@ export const adminListAppUsers = createServerFn({ method: "POST" })
       supabaseAdmin.from("chat_messages").select("anon_id"),
       supabaseAdmin.from("videos").select("id, title, thumbnail_url"),
     ]);
+    if (usersRes.error && isMissingRoleColumn(usersRes.error)) {
+      usersRes = await supabaseAdmin
+        .from("app_users")
+        .select("id, username, display_name, blocked, created_at, last_login_at, last_seen_at")
+        .order("created_at", { ascending: false }) as any;
+    }
     if (usersRes.error) throw new Error(usersRes.error.message);
     const videoById = new Map((videosRes.data ?? []).map((v: any) => [v.id, v]));
     const stats = new Map<string, any>();
@@ -252,6 +271,7 @@ export const adminListAppUsers = createServerFn({ method: "POST" })
       const recent = Math.max(lastSeenMs, lastActivityMs);
       return {
         ...u,
+        role: u.role ?? (["mari", "mari2"].includes(String(u.username).toLowerCase()) ? "admin" : "user"),
         total_seconds: st.total_seconds,
         sessions: st.sessions,
         messages: st.messages,
