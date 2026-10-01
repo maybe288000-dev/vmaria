@@ -734,6 +734,42 @@ export const getAnalytics = createServerFn({ method: "GET" }).handler(async () =
   };
 });
 
+export const generateBilingualMovieDetails = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ video_id: z.string().uuid() }).parse(d))
+  .handler(async ({ data }) => {
+    const openRouterKey = process.env.OPENROUTER_API_KEY;
+    const lovableKey = process.env.LOVABLE_API_KEY;
+    const key = openRouterKey || lovableKey;
+    const gateway = openRouterKey ? OPENROUTER_GATEWAY : AI_GATEWAY;
+    if (!key) throw new Error("لم يتم إعداد مفتاح الذكاء الاصطناعي على الخادم");
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const [{ data: video }, { data: clips }] = await Promise.all([
+      supabaseAdmin.from("videos").select("id, title, description, story_ar, story_en, details_ar, details_en, content_rating, content_warnings").eq("id", data.video_id).maybeSingle(),
+      supabaseAdmin.from("clips").select("title, description, start_sec, tags").eq("video_id", data.video_id).order("order_index").limit(20),
+    ]);
+    if (!video) throw new Error("الفيلم غير موجود");
+    const prompt = `حوّل بيانات الفيلم التالية إلى JSON فقط بالمفاتيح story_ar, story_en, details_ar, details_en. story_ar باللهجة العراقية الواضحة بدون ألفاظ إباحية، وstory_en إنكليزية طبيعية. اشرح النوع والجو والموضوع واللقطات المفهرسة فقط، ولا تخترع أحداثاً أو ممثلين. إذا كان التصنيف للبالغين اذكر ذلك بشكل تحذير موضوعي.\nالعنوان: ${video.title}\nالوصف الأصلي: ${video.description ?? "غير متوفر"}\nالتصنيف: ${video.content_rating ?? "غير محدد"}\nالتحذيرات: ${(video.content_warnings ?? []).join("، ")}\nاللقطات: ${(clips ?? []).map((c: any) => `${c.title} (${c.start_sec}s): ${c.description ?? ""}`).join(" | ")}`;
+    const res = await fetch(gateway, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+      body: JSON.stringify({ model: openRouterKey ? "openai/gpt-4o-mini" : "google/gemini-3-flash-preview", messages: [{ role: "system", content: "أنت محرر بيانات أفلام. أعد JSON صالحاً فقط." }, { role: "user", content: prompt }] }),
+    });
+    if (!res.ok) throw new Error(`فشل توليد الترجمة: ${(await res.text()).slice(0, 160)}`);
+    const raw = String(((await res.json()) as any).choices?.[0]?.message?.content ?? "").replace(/^```json\s*|```$/g, "").trim();
+    let parsed: any;
+    try { parsed = JSON.parse(raw); } catch { throw new Error("تعذر قراءة نتيجة الترجمة"); }
+    const update = {
+      story_ar: video.story_ar || parsed.story_ar || null,
+      story_en: video.story_en || parsed.story_en || null,
+      details_ar: video.details_ar || parsed.details_ar || null,
+      details_en: video.details_en || parsed.details_en || null,
+      updated_at: new Date().toISOString(),
+    };
+    const { error } = await supabaseAdmin.from("videos").update(update).eq("id", data.video_id);
+    if (error) throw new Error(error.message);
+    return { ...update, preserved: Boolean(video.story_ar || video.story_en || video.details_ar || video.details_en) };
+  });
+
 // ---------- Chat with Maria ----------
 const MARIA_BIRTHDAY = new Date("2002-06-05T00:00:00Z"); // 24 years on 2026-06-05
 
@@ -743,7 +779,7 @@ function mariaAgeYears(): number {
   return Math.floor(diff / (1000 * 60 * 60 * 24 * 365.25));
 }
 
-const MARIA_SYSTEM = () => `أنتِ "ماريا"، مساعد سينمائي رقمي داخل موقع ماريا. مهمتك الوحيدة مساعدة المستخدم في اكتشاف الأفلام واللقطات الموجودة في كتالوج الموقع وشرح بياناتها. لا تجيبي عن أفلام أو معلومات غير موجودة في الكتالوج، وإذا لم تجدي المعلومة قولي: "ما عندي معلومة عنها بكتالوج ماريا". لا تخترعي أحداثاً أو ممثلين أو مشاهد، ولا تدّعي أنكِ شاهدتِ فيديو لم تُزوّدي ببياناته. تحدثي بلهجة عراقية بغدادية خفيفة وواضحة وباختصار. يمكنك مناقشة الرومانسية والموضوعات الناضجة بجرأة أدبية عامة ومحترمة، لكن لا تقدمي وصفاً جنسياً صريحاً أو إباحياً أو محتوى يتضمن قاصرين أو استغلالاً.`;
+const MARIA_SYSTEM = () => `أنتِ "ماريا"، مساعدة سينمائية رقمية داخل منصة ماريا للبالغين. جاوبي باللهجة العراقية الطبيعية والواضحة، واستعملي مفردات عراقية مثل "هالفيلم" و"شنو" و"أكو" و"ما گدرت" بدون مبالغة. مهمتچ الوحيدة هي شرح أفلام ولقطات وبيانات الكتالوج الموجود بالموقع. گدري تحچين عن كون العمل للبالغين وعن الرومانسية والمواضيع الناضجة بصورة نقدية ومحترمة، لكن لا تحوّلين المحادثة إلى إثارة جنسية أو وصف إباحي تفصيلي، ولا محتوى عن قاصرين أو إكراه أو استغلال. لا تخترعين أحداثاً أو ممثلين أو مشاهد، ولا تدّعين مشاهدة فيديو ما عندچ بياناته. إذا المعلومة مو موجودة قولي: "ما عندي معلومة عنها بكتالوج ماريا". خلي الرد مختصر ومفيد، واذكري تحذير العمر إذا كان الفيلم مصنفاً للبالغين.`;
 
 export const chatWithMaria = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) =>
@@ -766,7 +802,7 @@ export const chatWithMaria = createServerFn({ method: "POST" })
 
     const videosQuery = supabaseAdmin
       .from("videos")
-      .select("id, title, description, duration_sec, cast_members, content_rating, content_warnings")
+      .select("id, title, description, story_ar, story_en, details_ar, details_en, duration_sec, cast_members, content_rating, content_warnings, subtitle_ar, subtitle_en")
       .order("created_at", { ascending: false })
       .limit(200);
     const clipsQuery = supabaseAdmin
@@ -788,7 +824,9 @@ export const chatWithMaria = createServerFn({ method: "POST" })
         const cast = Array.isArray(video.cast_members)
           ? video.cast_members.map((person: any) => `${person.name}${person.role ? ` بدور ${person.role}` : ""}`).join("، ")
           : "لا توجد أسماء موثقة";
-        return `فيلم: ${video.title}\nالوصف: ${video.description ?? "بدون وصف"}\nالمدة: ${video.duration_sec ?? "غير معروفة"} ثانية\nالتصنيف: ${video.content_rating ?? "غير محدد"}\nتحذيرات المحتوى: ${(video.content_warnings ?? []).join("، ") || "لا توجد"}\nطاقم موثق: ${cast}\nاللقطات: ${related || "لا توجد لقطات مفهرسة"}`;
+        const hasArabicSubs = Array.isArray(video.subtitle_ar) && video.subtitle_ar.length > 0;
+        const hasEnglishSubs = Array.isArray(video.subtitle_en) && video.subtitle_en.length > 0;
+        return `فيلم: ${video.title}\nالوصف: ${video.story_ar || video.description || "بدون وصف"}\nالوصف الإنكليزي: ${video.story_en || "غير متوفر"}\nالتفاصيل: ${video.details_ar || "غير متوفرة"}\nالمدة: ${video.duration_sec ?? "غير معروفة"} ثانية\nالتصنيف: ${video.content_rating ?? "غير محدد"}\nتحذيرات المحتوى: ${(video.content_warnings ?? []).join("، ") || "لا توجد"}\nطاقم موثق: ${cast}\nالترجمة: العربية ${hasArabicSubs ? "متوفرة" : "غير متوفرة"}، الإنكليزية ${hasEnglishSubs ? "متوفرة" : "غير متوفرة"}\nاللقطات: ${related || "لا توجد لقطات مفهرسة"}`;
       })
       .join("\n---\n");
     const allowedTitles = (catalog ?? []).map((video: any) => video.title).filter(Boolean).join("، ");
@@ -805,7 +843,7 @@ export const chatWithMaria = createServerFn({ method: "POST" })
           .join(" | ");
         const mm = Math.floor(t / 60);
         const ss = t % 60;
-        nowPlayingContext = `الفيلم المفتوح مع المستخدم: ${now.title}\nالوصف: ${now.description ?? "بدون وصف"}\nالوقت المختار: ${mm}:${String(ss).padStart(2, "0")}\nأقرب اللقطات المفهرسة: ${nearby || "لا توجد لقطات مفهرسة"}`;
+        nowPlayingContext = `الفيلم المفتوح مع المستخدم: ${now.title}\nالوصف: ${now.story_ar || now.description || "بدون وصف"}\nالتفاصيل: ${now.details_ar || "غير متوفرة"}\nالوقت المختار: ${mm}:${String(ss).padStart(2, "0")}\nأقرب اللقطات المفهرسة: ${nearby || "لا توجد لقطات مفهرسة"}`;
       }
     }
     const currentMovieInstruction = data.video_id

@@ -309,12 +309,19 @@ export type Database = {
           content_rating: string | null
           content_warnings: string[]
           created_at: string
+          details_ar: string | null
+          details_en: string | null
           description: string | null
           drive_file_id: string
           duration_sec: number | null
           id: string
           mime_type: string | null
           size_bytes: number | null
+          story_ar: string | null
+          story_en: string | null
+          subtitle_ar: Json
+          subtitle_en: Json
+          subtitles_source: string | null
           thumbnail_url: string | null
           title: string
           updated_at: string
@@ -325,12 +332,19 @@ export type Database = {
           content_rating?: string | null
           content_warnings?: string[]
           created_at?: string
+          details_ar?: string | null
+          details_en?: string | null
           description?: string | null
           drive_file_id: string
           duration_sec?: number | null
           id?: string
           mime_type?: string | null
           size_bytes?: number | null
+          story_ar?: string | null
+          story_en?: string | null
+          subtitle_ar?: Json
+          subtitle_en?: Json
+          subtitles_source?: string | null
           thumbnail_url?: string | null
           title: string
           updated_at?: string
@@ -341,12 +355,19 @@ export type Database = {
           content_rating?: string | null
           content_warnings?: string[]
           created_at?: string
+          details_ar?: string | null
+          details_en?: string | null
           description?: string | null
           drive_file_id?: string
           duration_sec?: number | null
           id?: string
           mime_type?: string | null
           size_bytes?: number | null
+          story_ar?: string | null
+          story_en?: string | null
+          subtitle_ar?: Json
+          subtitle_en?: Json
+          subtitles_source?: string | null
           thumbnail_url?: string | null
           title?: string
           updated_at?: string

@@ -4,10 +4,11 @@ import {
   listVideos,
   generateClipsAI,
   generateVideoDescription,
+  generateBilingualMovieDetails,
   deleteVideo,
 } from "@/lib/video.functions";
 import { toast } from "sonner";
-import { Sparkles, Trash2, Film, Wand2, Square, FileText } from "lucide-react";
+import { Sparkles, Trash2, Film, Wand2, Square, FileText, Languages } from "lucide-react";
 import { useRef, useState } from "react";
 import { driveThumbnailUrl } from "@/lib/drive";
 
@@ -20,6 +21,7 @@ function AdminVideos() {
   const q = useQuery({ queryKey: ["videos"], queryFn: () => listVideos({ data: {} }) });
   const [busy, setBusy] = useState<string | null>(null);
   const [busyDesc, setBusyDesc] = useState<string | null>(null);
+  const [busyTranslation, setBusyTranslation] = useState<string | null>(null);
   const [bulk, setBulk] = useState<{
     kind: "clips" | "desc";
     done: number;
@@ -53,6 +55,20 @@ function AdminVideos() {
       toast.error(e.message);
     } finally {
       setBusyDesc(null);
+    }
+  };
+
+  const genTranslation = async (id: string) => {
+    setBusyTranslation(id);
+    try {
+      const r = await generateBilingualMovieDetails({ data: { video_id: id } });
+      toast.success(r.preserved ? "تمت الترجمة مع الحفاظ على التفاصيل الموجودة" : "تم توليد التفاصيل بالعربية والإنكليزية");
+      qc.invalidateQueries({ queryKey: ["videos"] });
+      qc.invalidateQueries({ queryKey: ["video", id] });
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setBusyTranslation(null);
     }
   };
 
@@ -216,6 +232,14 @@ function AdminVideos() {
               >
                 <Sparkles className="h-3.5 w-3.5" />
                 {busy === v.id ? "..." : "لقطات AI"}
+              </button>
+              <button
+                onClick={() => genTranslation(v.id)}
+                disabled={busyTranslation === v.id || !!bulk}
+                className="inline-flex items-center gap-1 rounded-md border border-primary/30 px-3 py-1.5 text-xs text-primary hover:bg-primary/10 disabled:opacity-50"
+              >
+                <Languages className="h-3.5 w-3.5" />
+                {busyTranslation === v.id ? "..." : "ترجمة"}
               </button>
               <button
                 onClick={() => remove(v.id)}

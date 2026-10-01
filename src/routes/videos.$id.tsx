@@ -30,6 +30,9 @@ import {
   Tag,
   ShieldAlert,
   UserRound,
+  Languages,
+  Subtitles,
+  Info,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useNavigate, useRouter } from "@tanstack/react-router";
@@ -59,6 +62,8 @@ function VideoPage() {
   const [showControls, setShowControls] = useState(true);
   const [resumeChecked, setResumeChecked] = useState(false);
   const [openComments, setOpenComments] = useState(false);
+  const [subtitleLang, setSubtitleLang] = useState<"off" | "ar" | "en">("off");
+  const [contentLang, setContentLang] = useState<"ar" | "en">("ar");
   const sessionRef = useRef<string | null>(null);
   const secondsRef = useRef(0);
   const playerRef = useRef<HTMLDivElement>(null);
@@ -215,6 +220,9 @@ function VideoPage() {
   if (q.isLoading) return <div className="p-8 text-muted-foreground">جارٍ التحميل...</div>;
   if (!q.data?.video) return <div className="p-8">الفيديو غير موجود</div>;
   const v = q.data.video;
+  const subtitleCues = subtitleLang === "ar" ? (Array.isArray(v.subtitle_ar) ? v.subtitle_ar : []) : subtitleLang === "en" ? (Array.isArray(v.subtitle_en) ? v.subtitle_en : []) : [];
+  const story = contentLang === "en" ? (v.story_en || v.story_ar || v.description) : (v.story_ar || v.description);
+  const details = contentLang === "en" ? (v.details_en || v.details_ar || "Details are not available yet.") : (v.details_ar || "تفاصيل الفيلم واللقطات الموثقة تظهر هنا بعد المعالجة.");
 
   return (
     <div className="min-h-screen">
@@ -310,12 +318,41 @@ function VideoPage() {
             )}
           </div>
 
-          <h1 className="mt-4 text-xl sm:text-2xl font-bold">{v.title}</h1>
-          {v.description && (
+          <section className="mt-3 rounded-2xl border border-border bg-card/70 p-3 sm:p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2 text-sm font-semibold"><Subtitles className="h-4 w-4 text-primary" />الترجمة أثناء المشاهدة</div>
+              <div className="flex flex-wrap gap-2" role="group" aria-label="اختيار لغة الترجمة">
+                {([['off', 'إيقاف'], ['ar', 'العربية'], ['en', 'English']] as const).map(([value, label]) => (
+                  <button key={value} type="button" onClick={() => setSubtitleLang(value)} className={`rounded-full border px-3 py-1.5 text-xs transition-colors ${subtitleLang === value ? "border-primary bg-primary/15 text-primary" : "border-border text-muted-foreground hover:border-primary/60"}`}>{label}</button>
+                ))}
+              </div>
+            </div>
+            {subtitleLang !== "off" && subtitleCues.length > 0 ? (
+              <div className="mt-3 max-h-40 space-y-1 overflow-y-auto rounded-xl bg-black/20 p-2">
+                {subtitleCues.map((cue: any, index: number) => (
+                  <button key={`${cue.start}-${index}`} type="button" onClick={() => { setStartSec(Number(cue.start) || 0); setPlaying(true); }} className="flex w-full items-start gap-3 rounded-lg px-2 py-1.5 text-right text-xs hover:bg-accent/60">
+                    <span className="shrink-0 text-primary">{fmt(Number(cue.start) || 0)}</span><span>{cue.text}</span>
+                  </button>
+                ))}
+              </div>
+            ) : subtitleLang !== "off" ? (
+              <p className="mt-3 flex items-start gap-2 text-xs leading-6 text-muted-foreground"><Info className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />لا توجد مسارات ترجمة موثقة لهذا الفيلم بعد. مشغل Google Drive لا يسمح للموقع بقراءة الصوت من داخل الإطار تلقائيًا؛ أضف ملف VTT أو نصًا موثوقًا من لوحة الإدارة حتى تظهر الترجمة.</p>
+            ) : <p className="mt-2 text-xs text-muted-foreground">اختار العربية أو English لعرض مسار الترجمة المتوفر، أو خلّيه إيقاف.</p>}
+          </section>
+
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            <h1 className="text-xl font-bold sm:text-2xl">{v.title}</h1>
+            {v.content_rating && <span className="rounded-full bg-rose-500/15 px-3 py-1 text-xs font-bold text-rose-300">للبالغين · {v.content_rating}</span>}
+          </div>
+          {story && (
             <p className="mt-2 text-sm text-muted-foreground whitespace-pre-line leading-relaxed">
-              {v.description}
+              {story}
             </p>
           )}
+          <section className="mt-4 grid gap-3 sm:grid-cols-3">
+            <div className="rounded-2xl border border-border bg-card/60 p-4"><div className="flex items-center gap-2 text-xs text-muted-foreground"><Clock3 className="h-4 w-4" />المدة</div><p className="mt-2 text-lg font-bold">{v.duration_sec ? fmt(v.duration_sec) : "غير محددة"}</p></div>
+            <div className="rounded-2xl border border-border bg-card/60 p-4 sm:col-span-2"><div className="flex flex-wrap items-center justify-between gap-2"><div className="flex items-center gap-2 text-xs text-muted-foreground"><Languages className="h-4 w-4" />القصة والتفاصيل</div><div className="flex gap-1"><button type="button" onClick={() => setContentLang("ar")} className={`rounded-full px-2.5 py-1 text-[11px] ${contentLang === "ar" ? "bg-primary/15 text-primary" : "text-muted-foreground"}`}>العربية</button><button type="button" onClick={() => setContentLang("en")} className={`rounded-full px-2.5 py-1 text-[11px] ${contentLang === "en" ? "bg-primary/15 text-primary" : "text-muted-foreground"}`}>English</button></div></div><p className="mt-2 text-sm leading-6">{details}</p></div>
+          </section>
 
           {(v.content_rating || v.content_warnings?.length || (Array.isArray(v.cast_members) && v.cast_members.length > 0)) && (
             <section className="mt-4 rounded-2xl border border-border bg-card/60 p-4">
